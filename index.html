@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>iPhone Visual SLAM - 3D Feature Map Studio</title>
+  <title>iPhone Visual SLAM - Feature Overlay Studio</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Three.js for 3D Spatial Visualization -->
@@ -108,7 +108,7 @@
     </div>
     
     <div class="flex items-center space-x-1.5">
-      <!-- Camera Start Touch Retry Button (For iOS Safari) -->
+      <!-- Camera Retry Trigger Button (iOS Safari) -->
       <button id="btn-cam-retry" class="px-2.5 h-8 rounded-full glass-button flex items-center space-x-1 text-xs font-semibold text-amber-300">
         <i class="fa-solid fa-video text-xs"></i>
         <span>カメラ起動</span>
@@ -139,19 +139,19 @@
     <!-- LAYER 1: CAMERA & OVERLAY CANVAS VIEWPORT -->
     <div id="camera-viewport" class="absolute inset-0 w-full h-full z-10 transition-all duration-300">
       <video id="camera-feed" playsinline webkit-playsinline autoplay muted class="absolute inset-0 w-full h-full object-cover"></video>
-      <canvas id="tracking-canvas" class="absolute inset-0 w-full h-full z-10 pointer-events-none"></canvas>
+      <canvas id="tracking-canvas" class="absolute inset-0 w-full h-full z-20 pointer-events-none"></canvas>
 
       <!-- Live Feature Overlay Stats Badge -->
-      <div class="absolute top-24 left-4 z-20 pointer-events-none flex flex-col space-y-1.5">
-        <span class="px-2.5 py-1 rounded-full text-[10px] font-mono bg-black/70 backdrop-blur-md border border-sky-400/30 text-sky-300 w-max flex items-center gap-1.5 shadow-lg">
-          <i class="fa-solid fa-crosshairs text-[9px]"></i> 抽出特徴点: <span id="stat-features" class="font-bold text-white">0</span>
-        </span>
+      <div class="absolute top-24 left-4 z-30 pointer-events-none flex flex-col space-y-1.5">
         <span class="px-2.5 py-1 rounded-full text-[10px] font-mono bg-black/70 backdrop-blur-md border border-emerald-400/30 text-emerald-300 w-max flex items-center gap-1.5 shadow-lg">
+          <i class="fa-solid fa-circle-dot text-emerald-400 text-[9px]"></i> 追跡特徴点: <span id="stat-features" class="font-bold text-white">0</span>
+        </span>
+        <span class="px-2.5 py-1 rounded-full text-[10px] font-mono bg-black/70 backdrop-blur-md border border-sky-400/30 text-sky-300 w-max flex items-center gap-1.5 shadow-lg">
           <i class="fa-solid fa-gauge-high text-[9px]"></i> 処理速度: <span id="stat-fps" class="font-bold text-white">0</span> FPS
         </span>
       </div>
 
-      <!-- AR Reticle Crosshair in Center -->
+      <!-- AR Reticle Target Crosshair -->
       <div class="absolute inset-0 pointer-events-none flex items-center justify-center z-15">
         <div class="w-16 h-16 rounded-full border border-sky-400/40 border-dashed flex items-center justify-center reticle-glow">
           <div class="w-2 h-2 rounded-full bg-sky-400"></div>
@@ -322,7 +322,7 @@
           </span>
         </div>
         <div class="flex items-center space-x-2">
-          <span class="text-[10px] text-slate-400 font-mono">信頼度: <span id="pos-confidence" class="text-emerald-400 font-bold">95%</span></span>
+          <span class="text-[10px] text-slate-400 font-mono">移動距離: <span id="stat-dist" class="text-sky-300 font-bold">0.00m</span> | 速度: <span id="stat-speed" class="text-emerald-300 font-bold">0.00m/s</span></span>
           <button id="btn-reset-origin" class="px-2 py-0.5 rounded-lg text-[9px] font-bold bg-rose-500/30 hover:bg-rose-500/50 border border-rose-400/40 text-rose-200 transition">
             原点リセット
           </button>
@@ -396,7 +396,7 @@
       <div id="icon-vectors-box" class="w-9 h-9 rounded-full glass-button flex items-center justify-center mb-1 text-emerald-400">
         <i class="fa-solid fa-vector-square"></i>
       </div>
-      <span class="text-[9px] font-medium">ARガイド</span>
+      <span class="text-[9px] font-medium">特徴点表示</span>
     </button>
 
   </footer>
@@ -406,7 +406,7 @@
     <div class="glass-panel w-full max-w-md max-h-[82vh] rounded-3xl p-6 overflow-y-auto space-y-4 border border-white/15 shadow-2xl">
       <div class="flex justify-between items-center pb-2 border-b border-white/10">
         <h2 class="text-base font-bold text-white flex items-center gap-2">
-          <i class="fa-solid fa-location-crosshairs text-sky-400"></i> 自己位置 & 3Dマップ特徴点表示
+          <i class="fa-solid fa-location-crosshairs text-sky-400"></i> カメラ画像 & 2D/3D特徴点オーバレイ
         </h2>
         <button id="btn-close-modal" class="p-2 text-slate-400 hover:text-white">
           <i class="fa-solid fa-xmark text-xl"></i>
@@ -414,19 +414,19 @@
       </div>
 
       <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
-        <div class="p-3 glass-card rounded-2xl border border-sky-500/20">
-          <h3 class="font-semibold text-sky-400 text-sm mb-1">1. カメラ画像 & 特徴点（Landmarks）の3D化</h3>
-          <p>抽出されたFAST特徴点をリアルタイムで3D空間内の座標(XYZ)へ変換・散布マッピング。一定距離動くごとに撮影したスナップショット写真（Billboard）が3D空間内に自動配置されます。</p>
+        <div class="p-3 glass-card rounded-2xl border border-emerald-500/20">
+          <h3 class="font-semibold text-emerald-400 text-sm mb-1">1. カメラ映像上の2D特徴点 & 移動ベクトル</h3>
+          <p>映像内の角や輪郭からFAST特徴点を自動検出し、**緑色（追跡中）**・**赤色（新規検出）**のポイントおよび**黄色（オプティカルフロー線）**の動きベクトルを画面上に直接重ねて描画します。</p>
         </div>
 
-        <div class="p-3 glass-card rounded-2xl border border-emerald-500/20">
-          <h3 class="font-semibold text-emerald-400 text-sm mb-1">2. スマホ型アバター & 視界錐台 (Frustum)</h3>
-          <p>3Dマップ上にリアルなスマートフォンアバター、視野角ピラミッド(視界錐台)、視線方向ベクトル(Heading Arrow)、ローカルXYZ軸を表示し、カメラの向き（Pitch/Yaw/Roll）を視覚化します。</p>
+        <div class="p-3 glass-card rounded-2xl border border-sky-500/20">
+          <h3 class="font-semibold text-sky-400 text-sm mb-1">2. 3Dマップとポイントクラウド</h3>
+          <p>抽出された特徴点を3D空間内に散布（Point Cloud）し、撮影地点のスナップショット写真を3D空間内に配置。カメラの向いている角度や位置を忠実に再現します。</p>
         </div>
 
         <div class="p-3 glass-card rounded-2xl border border-purple-500/20">
-          <h3 class="font-semibold text-purple-400 text-sm mb-1">3. 3D立体チューブ軌跡 & ピラー表示</h3>
-          <p>移動の足跡を空間上の立体Tubeメッシュおよび地面への垂直ドロップライン（Pillars）でビジュアル化します。</p>
+          <h3 class="font-semibold text-purple-400 text-sm mb-1">3. 自己位置の3D立体チューブ軌跡</h3>
+          <p>スマホの移動軌跡を空間内にグラデーション付き3Dチューブと地面へのドロップラインで描画します。</p>
         </div>
       </div>
 
@@ -440,7 +440,7 @@
 
   <script>
     /**
-     * iPhone Visual SLAM Engine with Dynamic Image Projection & Camera Orientation Frustum
+     * iPhone Visual SLAM Engine with 2D Camera Feature Overlay & 3D Spatial Reconstruction
      */
 
     // --- Global State ---
@@ -477,6 +477,7 @@
 
       // Tracking Data
       trackedFeatures: [],
+      newlyDetectedFeatures: [],
       pointCloud3D: [],
       trajectory3D: [],
       keyframeSnapshots: [] // Camera image billboards in 3D
@@ -511,7 +512,6 @@
     const posZElem = document.getElementById('pos-z');
     const statDistElem = document.getElementById('stat-dist');
     const statSpeedElem = document.getElementById('stat-speed');
-    const posConfidenceElem = document.getElementById('pos-confidence');
     
     const yawElem = document.getElementById('ori-yaw');
     const pitchElem = document.getElementById('ori-pitch');
@@ -904,12 +904,13 @@
 
     function updateVisualFeatureTracking(imgData, width, height, dt) {
       const data = imgData.data;
+      state.newlyDetectedFeatures = [];
 
       // Extract FAST corners
-      if (state.trackedFeatures.length < 50) {
-        const newFeatures = detectFASTCorners(data, width, height, 25);
+      if (state.trackedFeatures.length < 60) {
+        const newFeatures = detectFASTCorners(data, width, height, 30);
         for (let nf of newFeatures) {
-          const exists = state.trackedFeatures.some(f => Math.hypot(f.x - nf.x, f.y - nf.y) < 12);
+          const exists = state.trackedFeatures.some(f => Math.hypot(f.x - nf.x, f.y - nf.y) < 10);
           if (!exists) {
             
             // Map 2D pixel to 3D Landmark Point relative to current pose and yaw angle
@@ -922,14 +923,17 @@
             const worldY = state.pose.y + ry;
             const worldZ = state.pose.z + (rx * Math.sin(angleRad) + rz * Math.cos(angleRad));
 
-            state.trackedFeatures.push({
+            const newFeatObj = {
               x: nf.x,
               y: nf.y,
               dx: 0,
               dy: 0,
               age: 0,
               world3D: { x: worldX, y: worldY, z: worldZ }
-            });
+            };
+
+            state.trackedFeatures.push(newFeatObj);
+            state.newlyDetectedFeatures.push(newFeatObj);
           }
         }
       }
@@ -1018,7 +1022,6 @@
       posZElem.textContent = state.pose.z.toFixed(2);
       statDistElem.textContent = `${state.totalDistance.toFixed(2)}m`;
       statSpeedElem.textContent = `${state.currentSpeed.toFixed(2)}m/s`;
-      posConfidenceElem.textContent = `${state.confidence}%`;
 
       // Record trajectory node
       const nowTs = performance.now();
@@ -1287,26 +1290,39 @@
 
       overlayCtx.clearRect(0, 0, width, height);
 
-      overlayCtx.font = 'bold 11px monospace';
-      overlayCtx.fillStyle = '#38bdf8';
-      overlayCtx.fillText(`[自己位置]: X:${state.pose.x.toFixed(2)} Y:${state.pose.y.toFixed(2)} Z:${state.pose.z.toFixed(2)}`, width / 2 - 100, height / 2 + 50);
+      if (!state.showVectors) return;
 
+      // Render tracked features on live camera feed
       state.trackedFeatures.forEach(feat => {
         const screenX = feat.x * scaleX;
         const screenY = feat.y * scaleY;
 
-        if (state.showVectors) {
-          overlayCtx.beginPath();
-          overlayCtx.moveTo(screenX, screenY);
-          overlayCtx.lineTo(screenX + feat.dx * scaleX * 6, screenY + feat.dy * scaleY * 6);
-          overlayCtx.strokeStyle = 'rgba(56, 189, 248, 0.85)';
-          overlayCtx.lineWidth = 1.5;
-          overlayCtx.stroke();
-        }
+        // Optical Flow Motion Velocity Vector Lines (Yellow)
+        overlayCtx.beginPath();
+        overlayCtx.moveTo(screenX, screenY);
+        overlayCtx.lineTo(screenX + feat.dx * scaleX * 8, screenY + feat.dy * scaleY * 8);
+        overlayCtx.strokeStyle = 'rgba(250, 204, 21, 0.9)'; // Bright Yellow
+        overlayCtx.lineWidth = 2.0;
+        overlayCtx.stroke();
+
+        // Tracked Feature Points (Green)
+        overlayCtx.beginPath();
+        overlayCtx.arc(screenX, screenY, 4.0, 0, Math.PI * 2);
+        overlayCtx.fillStyle = '#10b981'; // Emerald Green
+        overlayCtx.fill();
+        overlayCtx.strokeStyle = '#ffffff';
+        overlayCtx.lineWidth = 1.0;
+        overlayCtx.stroke();
+      });
+
+      // Render Newly Detected Features (Red)
+      state.newlyDetectedFeatures.forEach(feat => {
+        const screenX = feat.x * scaleX;
+        const screenY = feat.y * scaleY;
 
         overlayCtx.beginPath();
-        overlayCtx.arc(screenX, screenY, 3.5, 0, Math.PI * 2);
-        overlayCtx.fillStyle = '#10b981';
+        overlayCtx.arc(screenX, screenY, 5.0, 0, Math.PI * 2);
+        overlayCtx.fillStyle = '#f43f5e'; // Rose Red
         overlayCtx.fill();
       });
     }
@@ -1586,6 +1602,7 @@
       state.totalDistance = 0;
       state.currentSpeed = 0;
       state.trackedFeatures = [];
+      state.newlyDetectedFeatures = [];
       state.pointCloud3D = [];
       state.trajectory3D = [];
       state.keyframeSnapshots = [];

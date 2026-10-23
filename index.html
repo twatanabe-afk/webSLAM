@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>iPhone Visual SLAM - 自己位置軌跡 3D Studio</title>
+  <title>iPhone Visual SLAM - 3D Feature Map Studio</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Three.js for 3D Spatial Visualization -->
@@ -108,7 +108,7 @@
     </div>
     
     <div class="flex items-center space-x-1.5">
-      <!-- Camera Start Touch Retry Overlay (For iOS Safari Permissions) -->
+      <!-- Camera Start Touch Retry Button (For iOS Safari) -->
       <button id="btn-cam-retry" class="px-2.5 h-8 rounded-full glass-button flex items-center space-x-1 text-xs font-semibold text-amber-300">
         <i class="fa-solid fa-video text-xs"></i>
         <span>カメラ起動</span>
@@ -144,7 +144,7 @@
       <!-- Live Feature Overlay Stats Badge -->
       <div class="absolute top-24 left-4 z-20 pointer-events-none flex flex-col space-y-1.5">
         <span class="px-2.5 py-1 rounded-full text-[10px] font-mono bg-black/70 backdrop-blur-md border border-sky-400/30 text-sky-300 w-max flex items-center gap-1.5 shadow-lg">
-          <i class="fa-solid fa-crosshairs text-[9px]"></i> 特徴点: <span id="stat-features" class="font-bold text-white">0</span>
+          <i class="fa-solid fa-crosshairs text-[9px]"></i> 抽出特徴点: <span id="stat-features" class="font-bold text-white">0</span>
         </span>
         <span class="px-2.5 py-1 rounded-full text-[10px] font-mono bg-black/70 backdrop-blur-md border border-emerald-400/30 text-emerald-300 w-max flex items-center gap-1.5 shadow-lg">
           <i class="fa-solid fa-gauge-high text-[9px]"></i> 処理速度: <span id="stat-fps" class="font-bold text-white">0</span> FPS
@@ -163,12 +163,15 @@
     <div id="three-viewport" class="absolute inset-0 w-full h-full z-0 opacity-0 pointer-events-none transition-all duration-300">
       <div id="three-canvas-container" class="w-full h-full"></div>
 
-      <div class="absolute top-24 left-4 z-20 pointer-events-none flex flex-col space-y-1">
+      <div class="absolute top-24 left-4 z-20 pointer-events-none flex flex-col space-y-1.5">
         <span class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-purple-950/80 border border-purple-400/40 text-purple-300 backdrop-blur-md flex items-center gap-1.5 shadow-lg">
-          <i class="fa-solid fa-cubes-stacked"></i> 3D立体チューブ軌跡 & 空間マップ
+          <i class="fa-solid fa-cubes-stacked"></i> 3D特徴点マップ・視界錐台 & カメラ画像
         </span>
         <span class="text-[9px] text-slate-300 bg-black/60 px-2 py-0.5 rounded-md backdrop-blur-sm border border-white/10">
-          <i class="fa-solid fa-arrows-spin text-sky-400"></i> スワイプで360度回転 / ピンチで拡大縮小
+          <i class="fa-solid fa-camera text-amber-400"></i> 画像: 撮影地点のスナップショット表示中
+        </span>
+        <span class="text-[9px] text-slate-300 bg-black/60 px-2 py-0.5 rounded-md backdrop-blur-sm border border-white/10">
+          <i class="fa-solid fa-arrows-spin text-sky-400"></i> スワイプで視点回転 / ピンチで拡大縮小
         </span>
       </div>
     </div>
@@ -190,7 +193,7 @@
 
   </main>
 
-  <!-- DEDICATED TRAJECTORY WINDOW (自己位置の軌跡表示ウィンドウ) -->
+  <!-- DEDICATED TRAJECTORY WINDOW -->
   <section id="trajectory-window" class="fixed inset-x-3 top-20 z-40 max-h-[75vh] glass-panel rounded-3xl border border-purple-500/40 shadow-2xl flex flex-col overflow-hidden transition-all duration-300 transform scale-95 opacity-0 pointer-events-none">
     
     <!-- Window Header Controls -->
@@ -264,8 +267,8 @@
             <div id="stat-env-y" class="text-emerald-300 font-bold text-xs">0.00 m</div>
           </div>
           <div class="glass-card p-2 rounded-xl">
-            <span class="text-slate-400">記録キーフレーム数:</span>
-            <div id="stat-keyframes" class="text-amber-300 font-bold text-xs">0 点</div>
+            <span class="text-slate-400">キャプチャ画像数:</span>
+            <div id="stat-keyframes" class="text-amber-300 font-bold text-xs">0 枚</div>
           </div>
         </div>
 
@@ -306,16 +309,16 @@
     </div>
   </section>
 
-  <!-- PROMINENT SELF-POSITION (自己位置) TELEMETRY DASHBOARD -->
+  <!-- PROMINENT SELF-POSITION TELEMETRY DASHBOARD -->
   <section class="absolute bottom-20 left-3 right-3 z-30 pointer-events-none">
     <div class="glass-panel p-3 rounded-2xl pointer-events-auto shadow-2xl border border-sky-500/30 space-y-2">
       
-      <!-- 自己位置 Header & Primary Coordinates -->
+      <!-- Header & Primary Coordinates -->
       <div class="flex items-center justify-between pb-1 border-b border-white/10">
         <div class="flex items-center space-x-2">
           <div class="w-2.5 h-2.5 rounded-full bg-sky-400 animate-ping"></div>
           <span class="text-xs font-bold uppercase tracking-wider text-sky-300 flex items-center gap-1">
-            <i class="fa-solid fa-location-dot text-rose-400"></i> 自己位置 (Self-Position)
+            <i class="fa-solid fa-location-dot text-rose-400"></i> 自己位置 & カメラ姿勢
           </span>
         </div>
         <div class="flex items-center space-x-2">
@@ -342,19 +345,19 @@
         </div>
       </div>
 
-      <!-- Distance Traveled, Speed & Orientation -->
+      <!-- Real-time Orientation (Yaw, Pitch, Roll Angles) -->
       <div class="grid grid-cols-3 gap-1.5 text-center font-mono text-[10px]">
         <div class="glass-card p-1 rounded-xl">
-          <span class="text-slate-400">総移動:</span>
-          <span id="stat-dist" class="font-bold text-amber-300">0.00m</span>
-        </div>
-        <div class="glass-card p-1 rounded-xl">
-          <span class="text-slate-400">速度:</span>
-          <span id="stat-speed" class="font-bold text-cyan-300">0.00m/s</span>
-        </div>
-        <div class="glass-card p-1 rounded-xl">
-          <span class="text-slate-400">Yaw:</span>
+          <span class="text-slate-400">Yaw (方位):</span>
           <span id="ori-yaw" class="font-bold text-fuchsia-300">0.0°</span>
+        </div>
+        <div class="glass-card p-1 rounded-xl">
+          <span class="text-slate-400">Pitch (仰角):</span>
+          <span id="ori-pitch" class="font-bold text-amber-300">0.0°</span>
+        </div>
+        <div class="glass-card p-1 rounded-xl">
+          <span class="text-slate-400">Roll (回転):</span>
+          <span id="ori-roll" class="font-bold text-cyan-300">0.0°</span>
         </div>
       </div>
 
@@ -370,6 +373,14 @@
         <i class="fa-solid fa-compass"></i>
       </div>
       <span class="text-[9px] font-medium">ジャイロ</span>
+    </button>
+
+    <!-- Manual Keyframe Image Snapshot Capture Button -->
+    <button id="btn-snap-keyframe" class="flex flex-col items-center justify-center text-slate-300 hover:text-white active:scale-95 transition">
+      <div class="w-9 h-9 rounded-full glass-button flex items-center justify-center mb-1 text-sky-400">
+        <i class="fa-solid fa-camera-retro"></i>
+      </div>
+      <span class="text-[9px] font-medium">画像記録</span>
     </button>
 
     <!-- Toggle SLAM Start/Stop -->
@@ -395,7 +406,7 @@
     <div class="glass-panel w-full max-w-md max-h-[82vh] rounded-3xl p-6 overflow-y-auto space-y-4 border border-white/15 shadow-2xl">
       <div class="flex justify-between items-center pb-2 border-b border-white/10">
         <h2 class="text-base font-bold text-white flex items-center gap-2">
-          <i class="fa-solid fa-location-crosshairs text-sky-400"></i> 自己位置推定 (Visual Odometry)
+          <i class="fa-solid fa-location-crosshairs text-sky-400"></i> 自己位置 & 3Dマップ特徴点表示
         </h2>
         <button id="btn-close-modal" class="p-2 text-slate-400 hover:text-white">
           <i class="fa-solid fa-xmark text-xl"></i>
@@ -404,18 +415,18 @@
 
       <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
         <div class="p-3 glass-card rounded-2xl border border-sky-500/20">
-          <h3 class="font-semibold text-sky-400 text-sm mb-1">1. カメラ映像による特徴点抽出</h3>
-          <p>iPhoneのカメラ映像からコントラストの強いコーナー特徴点（FAST detector）をリアルタイムに検出し追跡します。</p>
+          <h3 class="font-semibold text-sky-400 text-sm mb-1">1. カメラ画像 & 特徴点（Landmarks）の3D化</h3>
+          <p>抽出されたFAST特徴点をリアルタイムで3D空間内の座標(XYZ)へ変換・散布マッピング。一定距離動くごとに撮影したスナップショット写真（Billboard）が3D空間内に自動配置されます。</p>
         </div>
 
         <div class="p-3 glass-card rounded-2xl border border-emerald-500/20">
-          <h3 class="font-semibold text-emerald-400 text-sm mb-1">2. 移動量の計算 (Visual Odometry)</h3>
-          <p>フレーム間の特徴点の移動（オプティカルフロー）とiPhoneのジャイロセンサー情報を統合（Sensor Fusion）して3次元での自己位置(X, Y, Z)を算出します。</p>
+          <h3 class="font-semibold text-emerald-400 text-sm mb-1">2. スマホ型アバター & 視界錐台 (Frustum)</h3>
+          <p>3Dマップ上にリアルなスマートフォンアバター、視野角ピラミッド(視界錐台)、視線方向ベクトル(Heading Arrow)、ローカルXYZ軸を表示し、カメラの向き（Pitch/Yaw/Roll）を視覚化します。</p>
         </div>
 
         <div class="p-3 glass-card rounded-2xl border border-purple-500/20">
           <h3 class="font-semibold text-purple-400 text-sm mb-1">3. 3D立体チューブ軌跡 & ピラー表示</h3>
-          <p>移動の足跡を空間上の立体Tubeメッシュおよび地面への垂直ドロップライン（Pillars）でビジュアル化。JSON/CSVでのデータ書き出しも可能です。</p>
+          <p>移動の足跡を空間上の立体Tubeメッシュおよび地面への垂直ドロップライン（Pillars）でビジュアル化します。</p>
         </div>
       </div>
 
@@ -429,7 +440,7 @@
 
   <script>
     /**
-     * iPhone Visual SLAM Engine with Enhanced Volumetric 3D Trajectory Visualization
+     * iPhone Visual SLAM Engine with Dynamic Image Projection & Camera Orientation Frustum
      */
 
     // --- Global State ---
@@ -443,7 +454,7 @@
       lastFpsUpdate: performance.now(),
       lastFrameTime: performance.now(),
       
-      // Self-Positioning Telemetry
+      // Self-Positioning & Camera Orientation Pose
       pose: {
         x: 0, y: 0, z: 0,
         pitch: 0, yaw: 0, roll: 0
@@ -467,7 +478,8 @@
       // Tracking Data
       trackedFeatures: [],
       pointCloud3D: [],
-      trajectory3D: []
+      trajectory3D: [],
+      keyframeSnapshots: [] // Camera image billboards in 3D
     };
 
     // --- DOM Elements ---
@@ -500,7 +512,10 @@
     const statDistElem = document.getElementById('stat-dist');
     const statSpeedElem = document.getElementById('stat-speed');
     const posConfidenceElem = document.getElementById('pos-confidence');
+    
     const yawElem = document.getElementById('ori-yaw');
+    const pitchElem = document.getElementById('ori-pitch');
+    const rollElem = document.getElementById('ori-roll');
 
     const btnStart = document.getElementById('btn-start');
     const btnStartIcon = document.getElementById('btn-start-icon');
@@ -509,6 +524,7 @@
     
     const btnCamRetry = document.getElementById('btn-cam-retry');
     const btnPermission = document.getElementById('btn-permission');
+    const btnSnapKeyframe = document.getElementById('btn-snap-keyframe');
     const btnResetOrigin = document.getElementById('btn-reset-origin');
     const btnToggleVectors = document.getElementById('btn-toggle-vectors');
     const iconVectorsBox = document.getElementById('icon-vectors-box');
@@ -548,11 +564,17 @@
 
     // --- Three.js Variables ---
     let scene, camera3D, renderer3D;
-    let trajectoryMeshGroup, pillarsGroup, startMarkerMesh, currentMarkerMesh;
-    let pointCloudParticles, selfAvatarMesh, auraRingMesh;
-    let pointCloudGeometry;
+    let trajectoryMeshGroup, pillarsGroup, keyframeBillboardsGroup;
+    let startMarkerMesh, currentMarkerMesh;
+    let pointCloudParticles, pointCloudGeometry;
+    
+    // 3D Camera Orientation Models
+    let cameraAvatarGroup, frustumPyramidMesh, headingArrowMesh, axesIndicatorGroup;
+
     let is3DTouchDragging = false, previousTouchX = 0, previousTouchY = 0;
     let orbitAzimuth = 0, orbitElevation = 0.5, orbitDistance = 5.0;
+
+    let lastKeyframeDistance = 0;
 
     // ==========================================
     // 1. INITIALIZATION & SETUP
@@ -618,8 +640,6 @@
         }
 
         videoElem.srcObject = stream;
-        
-        // Ensure video is playing for Safari
         await videoElem.play().catch(e => console.log("Safari auto play caught:", e));
 
         btnCamRetry.classList.add('hidden');
@@ -650,6 +670,7 @@
       btnStart.addEventListener('click', toggleSLAM);
       btnCamRetry.addEventListener('click', () => { ensureVideoPlaying(); setupCamera(); });
       btnPermission.addEventListener('click', requestSensorPermissions);
+      btnSnapKeyframe.addEventListener('click', () => captureKeyframeSnapshot(true));
       btnResetOrigin.addEventListener('click', resetOriginPosition);
       btnToggleVectors.addEventListener('click', toggleVectors);
       btnToggleView.addEventListener('click', toggleMainView);
@@ -779,9 +800,10 @@
       state.pose.roll = (e.gamma - state.sensor.initGamma).toFixed(1);
 
       yawElem.textContent = `${state.pose.yaw}°`;
+      pitchElem.textContent = `${state.pose.pitch}°`;
+      rollElem.textContent = `${state.pose.roll}°`;
     }
 
-    // --- FIX FOR CAMERA BLANK/FREEZE BUG ---
     function toggleMainView() {
       state.activeMainView = (state.activeMainView === 'camera') ? '3d' : 'camera';
       updateViewportLayout();
@@ -791,11 +813,9 @@
       ensureVideoPlaying();
 
       if (state.activeMainView === 'camera') {
-        // Full Camera View Mode
         cameraViewport.className = "absolute inset-0 w-full h-full z-10 opacity-100 transition-all duration-300 pointer-events-auto";
         threeViewport.className = "absolute inset-0 w-full h-full z-0 opacity-0 pointer-events-none transition-all duration-300";
         
-        // Move camera element back to main viewport container
         if (!cameraViewport.contains(videoElem)) {
           cameraViewport.insertBefore(videoElem, overlayCanvas);
         }
@@ -803,7 +823,6 @@
         pipWindow.appendChild(threeCanvasContainer);
         viewModeLabel.textContent = "カメラ";
       } else {
-        // Full 3D Map Mode
         threeViewport.className = "absolute inset-0 w-full h-full z-10 opacity-100 transition-all duration-300 pointer-events-auto";
         cameraViewport.className = "absolute inset-0 w-full h-full z-0 opacity-0 pointer-events-none transition-all duration-300";
 
@@ -817,7 +836,6 @@
       }
       
       resizeCanvases();
-      // Force Safari to keep decoded video frames active
       videoElem.play().catch(() => {});
     }
 
@@ -888,28 +906,35 @@
       const data = imgData.data;
 
       // Extract FAST corners
-      if (state.trackedFeatures.length < 45) {
+      if (state.trackedFeatures.length < 50) {
         const newFeatures = detectFASTCorners(data, width, height, 25);
         for (let nf of newFeatures) {
           const exists = state.trackedFeatures.some(f => Math.hypot(f.x - nf.x, f.y - nf.y) < 12);
           if (!exists) {
+            
+            // Map 2D pixel to 3D Landmark Point relative to current pose and yaw angle
+            const angleRad = (state.pose.yaw * Math.PI) / 180;
+            const rx = (nf.x / width - 0.5) * 2.5;
+            const ry = -(nf.y / height - 0.5) * 2.5;
+            const rz = -1.2 - Math.random() * 2.0;
+
+            const worldX = state.pose.x + (rx * Math.cos(angleRad) - rz * Math.sin(angleRad));
+            const worldY = state.pose.y + ry;
+            const worldZ = state.pose.z + (rx * Math.sin(angleRad) + rz * Math.cos(angleRad));
+
             state.trackedFeatures.push({
               x: nf.x,
               y: nf.y,
               dx: 0,
               dy: 0,
               age: 0,
-              world3D: {
-                x: (nf.x / width - 0.5) * 3,
-                y: -(nf.y / height - 0.5) * 3,
-                z: -1.5 - Math.random() * 2.5
-              }
+              world3D: { x: worldX, y: worldY, z: worldZ }
             });
           }
         }
       }
 
-      // Optical flow motion calculation
+      // Optical flow calculation
       const updatedFeatures = [];
       let avgDx = 0;
       let avgDy = 0;
@@ -984,7 +1009,7 @@
         }
 
         state.lastPose = { x: state.pose.x, y: state.pose.y, z: state.pose.z };
-        state.confidence = Math.min(99, Math.max(40, Math.round((updatedFeatures.length / 45) * 100)));
+        state.confidence = Math.min(99, Math.max(40, Math.round((updatedFeatures.length / 50) * 100)));
       }
 
       // Update Telemetry Displays
@@ -1013,15 +1038,60 @@
 
       // Record 3D Point cloud landmarks
       state.trackedFeatures.forEach(feat => {
-        const pxWorld = state.pose.x + feat.world3D.x;
-        const pyWorld = state.pose.y + feat.world3D.y;
-        const pzWorld = state.pose.z + feat.world3D.z;
-
-        const exists = state.pointCloud3D.some(p => Math.hypot(p.x - pxWorld, p.y - pyWorld, p.z - pzWorld) < 0.15);
-        if (!exists && state.pointCloud3D.length < 800) {
-          state.pointCloud3D.push(new THREE.Vector3(pxWorld, pyWorld, pzWorld));
+        const pt = new THREE.Vector3(feat.world3D.x, feat.world3D.y, feat.world3D.z);
+        const exists = state.pointCloud3D.some(p => p.distanceTo(pt) < 0.12);
+        if (!exists && state.pointCloud3D.length < 1000) {
+          state.pointCloud3D.push(pt);
         }
       });
+
+      // Auto Snapshot Camera Image Billboard Keyframe every 0.8m traveled
+      if (state.totalDistance - lastKeyframeDistance > 0.8) {
+        lastKeyframeDistance = state.totalDistance;
+        captureKeyframeSnapshot(false);
+      }
+    }
+
+    function captureKeyframeSnapshot(manual = false) {
+      if (!videoElem || videoElem.readyState < 2) return;
+
+      const snapCanvas = document.createElement('canvas');
+      snapCanvas.width = 160;
+      snapCanvas.height = 120;
+      const sCtx = snapCanvas.getContext('2d');
+      sCtx.drawImage(videoElem, 0, 0, 160, 120);
+
+      const texture = new THREE.CanvasTexture(snapCanvas);
+      
+      const planeGeo = new THREE.PlaneGeometry(0.48, 0.36);
+      const planeMat = new THREE.MeshBasicMaterial({
+        map: texture,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.9
+      });
+      const billboardMesh = new THREE.Mesh(planeGeo, planeMat);
+
+      // Position billboard slightly in front of camera pose
+      const angleRad = (state.pose.yaw * Math.PI) / 180;
+      billboardMesh.position.set(
+        state.pose.x - Math.sin(angleRad) * 0.2,
+        state.pose.y + 0.1,
+        state.pose.z + Math.cos(angleRad) * 0.2
+      );
+      billboardMesh.rotation.y = angleRad;
+
+      keyframeBillboardsGroup.add(billboardMesh);
+      state.keyframeSnapshots.push({ mesh: billboardMesh, pose: { ...state.pose } });
+
+      statKeyframes.textContent = `${state.keyframeSnapshots.length} 枚`;
+
+      if (manual) {
+        setStatus('カメラ画像を3D空間に記録しました', 'bg-purple-500');
+        setTimeout(() => {
+          if (state.isTracking) setStatus('自己位置推定中...', 'bg-emerald-500');
+        }, 1200);
+      }
     }
 
     function getLuminance(data, index) {
@@ -1082,7 +1152,6 @@
         statEnvX.textContent = `${(maxX - minX).toFixed(2)} m`;
         statEnvZ.textContent = `${(maxZ - minZ).toFixed(2)} m`;
         statEnvY.textContent = `${(maxY - minY).toFixed(2)} m`;
-        statKeyframes.textContent = `${state.trajectory3D.length} 点`;
       }
 
       // 2D Footprint Plan (XZ Plane)
@@ -1182,7 +1251,12 @@
     }
 
     function exportTrajectoryJSON() {
-      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.trajectory3D, null, 2));
+      const exportObj = {
+        trajectory: state.trajectory3D,
+        snapshotsCount: state.keyframeSnapshots.length,
+        pointCloudCount: state.pointCloud3D.length
+      };
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj, null, 2));
       const downloadAnchor = document.createElement('a');
       downloadAnchor.setAttribute("href", dataStr);
       downloadAnchor.setAttribute("download", `slam_trajectory_${Date.now()}.json`);
@@ -1273,14 +1347,23 @@
       const selfRx = cx + state.pose.x * 12;
       const selfRy = cy + state.pose.z * 12;
 
-      radarCtx.beginPath();
-      radarCtx.arc(selfRx, selfRy, 4.5, 0, Math.PI * 2);
+      // Draw Heading Arrow in Radar
+      const angleRad = (state.pose.yaw * Math.PI) / 180;
+      radarCtx.save();
+      radarCtx.translate(selfRx, selfRy);
+      radarCtx.rotate(-angleRad);
       radarCtx.fillStyle = '#f43f5e';
+      radarCtx.beginPath();
+      radarCtx.moveTo(0, -6);
+      radarCtx.lineTo(4, 4);
+      radarCtx.lineTo(-4, 4);
+      radarCtx.closePath();
       radarCtx.fill();
+      radarCtx.restore();
     }
 
     // ==========================================
-    // 5. ENHANCED 3D SCENE & VOLUMETRIC TUBE TRAJECTORY
+    // 5. ENHANCED 3D SCENE & CAMERA ORIENTATION AVATAR
     // ==========================================
     function initThreeJS() {
       const width = window.innerWidth;
@@ -1311,46 +1394,71 @@
       grid.position.y = -0.8;
       scene.add(grid);
 
-      // Trajectory Volumetric Tube & Pillar Groups
+      // Trajectory & Keyframe Billboard Groups
       trajectoryMeshGroup = new THREE.Group();
       scene.add(trajectoryMeshGroup);
 
       pillarsGroup = new THREE.Group();
       scene.add(pillarsGroup);
 
-      // Start Marker Sphere (S)
+      keyframeBillboardsGroup = new THREE.Group();
+      scene.add(keyframeBillboardsGroup);
+
+      // Start Marker (S)
       const startGeo = new THREE.SphereGeometry(0.12, 16, 16);
       const startMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7 });
       startMarkerMesh = new THREE.Mesh(startGeo, startMat);
       scene.add(startMarkerMesh);
 
       // Current Marker Sphere (C)
-      const currentGeo = new THREE.SphereGeometry(0.14, 16, 16);
+      const currentGeo = new THREE.SphereGeometry(0.08, 16, 16);
       const currentMat = new THREE.MeshStandardMaterial({ color: 0xf43f5e, emissive: 0xe11d48 });
       currentMarkerMesh = new THREE.Mesh(currentGeo, currentMat);
       scene.add(currentMarkerMesh);
 
-      // Current Position Camera Cone Pointer
-      const avatarGeo = new THREE.ConeGeometry(0.2, 0.4, 4);
-      const avatarMat = new THREE.MeshStandardMaterial({ color: 0x10b981, wireframe: false });
-      selfAvatarMesh = new THREE.Mesh(avatarGeo, avatarMat);
-      selfAvatarMesh.rotation.x = Math.PI / 2;
-      scene.add(selfAvatarMesh);
+      // BUILD DETAILED 3D CAMERA ORIENTATION AVATAR GROUP
+      cameraAvatarGroup = new THREE.Group();
 
-      // Pulsating Aura Ring beneath avatar
-      const auraGeo = new THREE.RingGeometry(0.25, 0.35, 32);
-      const auraMat = new THREE.MeshBasicMaterial({ color: 0x10b981, side: THREE.DoubleSide, transparent: true, opacity: 0.6 });
-      auraRingMesh = new THREE.Mesh(auraGeo, auraMat);
-      auraRingMesh.rotation.x = Math.PI / 2;
-      scene.add(auraRingMesh);
+      // 1. Smartphone Model Box
+      const phoneGeo = new THREE.BoxGeometry(0.22, 0.44, 0.03);
+      const phoneMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.8, roughness: 0.2 });
+      const phoneMesh = new THREE.Mesh(phoneGeo, phoneMat);
+      cameraAvatarGroup.add(phoneMesh);
 
-      // Point Cloud
+      // Phone Screen Face
+      const screenGeo = new THREE.PlaneGeometry(0.20, 0.40);
+      const screenMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide });
+      const screenMesh = new THREE.Mesh(screenGeo, screenMat);
+      screenMesh.position.z = 0.016;
+      cameraAvatarGroup.add(screenMesh);
+
+      // 2. Camera View Frustum Skeleton (Cone / Wireframe Pyramid)
+      const frustumGeo = new THREE.ConeGeometry(0.45, 0.6, 4);
+      frustumGeo.rotateX(-Math.PI / 2); // Point forward along -Z
+      const frustumWireMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, wireframe: true, transparent: true, opacity: 0.7 });
+      frustumPyramidMesh = new THREE.Mesh(frustumGeo, frustumWireMat);
+      frustumPyramidMesh.position.z = -0.3;
+      cameraAvatarGroup.add(frustumPyramidMesh);
+
+      // 3. Directional Heading Arrow
+      const arrowDir = new THREE.Vector3(0, 0, -1);
+      const arrowOrigin = new THREE.Vector3(0, 0, 0);
+      headingArrowMesh = new THREE.ArrowHelper(arrowDir, arrowOrigin, 0.6, 0x10b981, 0.15, 0.1);
+      cameraAvatarGroup.add(headingArrowMesh);
+
+      // 4. Local Axis Indicator (RGB: Red=X, Green=Y, Blue=Z)
+      axesIndicatorGroup = new THREE.AxesHelper(0.3);
+      cameraAvatarGroup.add(axesIndicatorGroup);
+
+      scene.add(cameraAvatarGroup);
+
+      // 3D Landmark Point Cloud
       pointCloudGeometry = new THREE.BufferGeometry();
       const pointCloudMat = new THREE.PointsMaterial({
-        color: 0xc084fc,
-        size: 0.08,
+        color: 0x10b981,
+        size: 0.07,
         transparent: true,
-        opacity: 0.85
+        opacity: 0.95
       });
       pointCloudParticles = new THREE.Points(pointCloudGeometry, pointCloudMat);
       scene.add(pointCloudParticles);
@@ -1359,21 +1467,21 @@
     function update3DScene() {
       if (!scene) return;
 
-      // Update Self Avatar
-      selfAvatarMesh.position.set(state.pose.x, state.pose.y, state.pose.z);
-      selfAvatarMesh.rotation.x = (state.pose.pitch * Math.PI) / 180;
-      selfAvatarMesh.rotation.y = (state.pose.yaw * Math.PI) / 180;
-      selfAvatarMesh.rotation.z = (state.pose.roll * Math.PI) / 180;
+      // Update 3D Camera Avatar Position & Quaternion Orientation (Pitch/Yaw/Roll)
+      cameraAvatarGroup.position.set(state.pose.x, state.pose.y, state.pose.z);
 
-      auraRingMesh.position.set(state.pose.x, -0.79, state.pose.z);
-      const timeSec = performance.now() * 0.003;
-      auraRingMesh.scale.setScalar(1 + Math.sin(timeSec) * 0.2);
+      const euler = new THREE.Euler(
+        THREE.MathUtils.degToRad(state.pose.pitch),
+        THREE.MathUtils.degToRad(state.pose.yaw),
+        THREE.MathUtils.degToRad(state.pose.roll),
+        'YXZ'
+      );
+      cameraAvatarGroup.quaternion.setFromEuler(euler);
 
       currentMarkerMesh.position.set(state.pose.x, state.pose.y, state.pose.z);
 
       // Reconstruct Volumetric 3D Tube Ribbon Trajectory
       if (state.trajectory3D.length > 1) {
-        // Clear previous meshes
         while (trajectoryMeshGroup.children.length > 0) {
           const obj = trajectoryMeshGroup.children.pop();
           if (obj.geometry) obj.geometry.dispose();
@@ -1386,12 +1494,10 @@
         const points = state.trajectory3D.map(p => new THREE.Vector3(p.x, p.y, p.z));
         startMarkerMesh.position.copy(points[0]);
 
-        // Create Smooth Curve Tube Mesh
         const curve = new THREE.CatmullRomCurve3(points);
         const tubularSegments = Math.min(points.length * 4, 300);
-        const tubeGeometry = new THREE.TubeGeometry(curve, tubularSegments, 0.04, 8, false);
+        const tubeGeometry = new THREE.TubeGeometry(curve, tubularSegments, 0.035, 8, false);
 
-        // Generate Color Heatmap Buffer
         const count = tubeGeometry.attributes.position.count;
         const colors = new Float32Array(count * 3);
 
@@ -1401,13 +1507,13 @@
 
           if (state.colorMode === 'speed') {
             const spd = Math.min(1.0, state.currentSpeed * 2.0);
-            color.setHSL(0.6 - spd * 0.6, 0.9, 0.5); // Blue to Red
+            color.setHSL(0.6 - spd * 0.6, 0.9, 0.5);
           } else if (state.colorMode === 'elevation') {
             const yVal = points[Math.floor(progress * (points.length - 1))].y;
             const hue = Math.min(0.8, Math.max(0.4, 0.5 + yVal * 0.4));
             color.setHSL(hue, 0.9, 0.5);
           } else {
-            color.setHSL(progress * 0.75, 0.85, 0.55); // Time Gradient
+            color.setHSL(progress * 0.75, 0.85, 0.55);
           }
 
           colors[i * 3] = color.r;
@@ -1425,7 +1531,7 @@
         const tubeMesh = new THREE.Mesh(tubeGeometry, tubeMaterial);
         trajectoryMeshGroup.add(tubeMesh);
 
-        // Add Vertical Drop-Line Pillars to Ground
+        // Add Vertical Drop-Line Pillars to Ground Grid
         const pillarStep = Math.max(1, Math.floor(points.length / 25));
         for (let i = 0; i < points.length; i += pillarStep) {
           const pt = points[i];
@@ -1446,7 +1552,7 @@
         }
       }
 
-      // Point cloud particle positions
+      // Render 3D Feature Landmarks
       if (state.pointCloud3D.length > 0) {
         const positions = new Float32Array(state.pointCloud3D.length * 3);
         state.pointCloud3D.forEach((p, idx) => {
@@ -1457,7 +1563,7 @@
         pointCloudGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
       }
 
-      // Orbit camera position calculation
+      // Orbit camera positioning
       if (state.activeMainView === '3d') {
         const targetX = state.pose.x;
         const targetY = state.pose.y;
@@ -1482,6 +1588,8 @@
       state.trackedFeatures = [];
       state.pointCloud3D = [];
       state.trajectory3D = [];
+      state.keyframeSnapshots = [];
+      lastKeyframeDistance = 0;
 
       while (trajectoryMeshGroup.children.length > 0) {
         const obj = trajectoryMeshGroup.children.pop();
@@ -1489,6 +1597,10 @@
       }
       while (pillarsGroup.children.length > 0) {
         const obj = pillarsGroup.children.pop();
+        if (obj.geometry) obj.geometry.dispose();
+      }
+      while (keyframeBillboardsGroup.children.length > 0) {
+        const obj = keyframeBillboardsGroup.children.pop();
         if (obj.geometry) obj.geometry.dispose();
       }
       pointCloudGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(0), 3));

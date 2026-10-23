@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>iPhone Visual SLAM - 自己位置軌跡アナライザー (Trajectory Analyzer)</title>
+  <title>iPhone Visual SLAM - 自己位置軌跡 3D Studio</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Three.js for 3D Spatial Visualization -->
@@ -23,14 +23,14 @@
     }
 
     .glass-panel {
-      background: rgba(15, 18, 28, 0.82);
+      background: rgba(15, 18, 28, 0.85);
       backdrop-filter: blur(24px);
       -webkit-backdrop-filter: blur(24px);
       border: 1px solid rgba(255, 255, 255, 0.12);
     }
 
     .glass-card {
-      background: rgba(28, 33, 48, 0.72);
+      background: rgba(28, 33, 48, 0.75);
       backdrop-filter: blur(16px);
       -webkit-backdrop-filter: blur(16px);
       border: 1px solid rgba(255, 255, 255, 0.08);
@@ -74,7 +74,6 @@
       animation: pulse-ring 2s infinite ease-in-out;
     }
 
-    /* Target Reticle Pulsing */
     @keyframes reticle-glow {
       0% { box-shadow: 0 0 12px rgba(56, 189, 248, 0.4); }
       50% { box-shadow: 0 0 24px rgba(56, 189, 248, 0.9); }
@@ -84,7 +83,6 @@
       animation: reticle-glow 1.5s infinite ease-in-out;
     }
 
-    /* Custom Scrollbar */
     ::-webkit-scrollbar {
       width: 4px;
       height: 4px;
@@ -102,7 +100,7 @@
     <div class="flex items-center space-x-2.5">
       <div id="status-indicator" class="w-3 h-3 rounded-full bg-amber-500 status-pulse"></div>
       <div>
-        <h1 class="text-[10px] font-bold tracking-widest uppercase text-sky-400">Visual SLAM & Trajectory</h1>
+        <h1 class="text-[10px] font-bold tracking-widest uppercase text-sky-400">Visual SLAM 3D Studio</h1>
         <div id="status-text" class="text-xs font-bold text-slate-100 flex items-center gap-1.5">
           カメラ準備中...
         </div>
@@ -130,7 +128,7 @@
       <!-- View Mode Switcher -->
       <button id="btn-toggle-view" class="px-2.5 h-8 rounded-full glass-button flex items-center space-x-1 text-xs font-semibold text-emerald-400">
         <i id="view-icon" class="fa-solid fa-layer-group text-xs"></i>
-        <span id="view-mode-label">切替</span>
+        <span id="view-mode-label">カメラ</span>
       </button>
     </div>
   </header>
@@ -140,7 +138,7 @@
     
     <!-- LAYER 1: CAMERA & OVERLAY CANVAS VIEWPORT -->
     <div id="camera-viewport" class="absolute inset-0 w-full h-full z-10 transition-all duration-300">
-      <video id="camera-feed" playsinline autoplay muted class="absolute inset-0 w-full h-full object-cover"></video>
+      <video id="camera-feed" playsinline webkit-playsinline autoplay muted class="absolute inset-0 w-full h-full object-cover"></video>
       <canvas id="tracking-canvas" class="absolute inset-0 w-full h-full z-10 pointer-events-none"></canvas>
 
       <!-- Live Feature Overlay Stats Badge -->
@@ -149,7 +147,7 @@
           <i class="fa-solid fa-crosshairs text-[9px]"></i> 特徴点: <span id="stat-features" class="font-bold text-white">0</span>
         </span>
         <span class="px-2.5 py-1 rounded-full text-[10px] font-mono bg-black/70 backdrop-blur-md border border-emerald-400/30 text-emerald-300 w-max flex items-center gap-1.5 shadow-lg">
-          <i class="fa-solid fa-gauge-high text-[9px]"></i> 速度: <span id="stat-fps" class="font-bold text-white">0</span> FPS
+          <i class="fa-solid fa-gauge-high text-[9px]"></i> 処理速度: <span id="stat-fps" class="font-bold text-white">0</span> FPS
         </span>
       </div>
 
@@ -162,12 +160,15 @@
     </div>
 
     <!-- LAYER 2: THREE.JS 3D RECONSTRUCTION MAP VIEWPORT -->
-    <div id="three-viewport" class="absolute inset-0 w-full h-full z-0 transition-all duration-300">
+    <div id="three-viewport" class="absolute inset-0 w-full h-full z-0 opacity-0 pointer-events-none transition-all duration-300">
       <div id="three-canvas-container" class="w-full h-full"></div>
 
-      <div class="absolute top-24 left-4 z-20 pointer-events-none">
-        <span class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-950/80 border border-emerald-400/40 text-emerald-300 backdrop-blur-md flex items-center gap-1.5 shadow-lg">
-          <i class="fa-solid fa-cubes-stacked"></i> 3D自己位置 & 点群マップ
+      <div class="absolute top-24 left-4 z-20 pointer-events-none flex flex-col space-y-1">
+        <span class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-purple-950/80 border border-purple-400/40 text-purple-300 backdrop-blur-md flex items-center gap-1.5 shadow-lg">
+          <i class="fa-solid fa-cubes-stacked"></i> 3D立体チューブ軌跡 & 空間マップ
+        </span>
+        <span class="text-[9px] text-slate-300 bg-black/60 px-2 py-0.5 rounded-md backdrop-blur-sm border border-white/10">
+          <i class="fa-solid fa-arrows-spin text-sky-400"></i> スワイプで360度回転 / ピンチで拡大縮小
         </span>
       </div>
     </div>
@@ -176,7 +177,7 @@
     <div id="pip-window" class="pip-container absolute top-24 right-4 z-30 cursor-pointer glass-panel flex flex-col items-center justify-center">
       <div class="relative w-full h-full overflow-hidden flex items-center justify-center">
         <span class="absolute top-1.5 left-1.5 z-40 px-1.5 py-0.5 rounded text-[8px] font-bold bg-black/80 text-sky-300 border border-sky-400/30">
-          タップで交代
+          タップで切替
         </span>
       </div>
     </div>
@@ -197,7 +198,7 @@
       <div class="flex items-center space-x-2">
         <div class="w-3 h-3 rounded-full bg-purple-400 animate-pulse"></div>
         <h2 class="text-xs font-bold text-purple-200 uppercase tracking-wider flex items-center gap-1.5">
-          <i class="fa-solid fa-route text-purple-400"></i> 自己位置の軌跡アナライザー (Trajectory)
+          <i class="fa-solid fa-route text-purple-400"></i> 自己位置の軌跡アナライザー
         </h2>
       </div>
       <div class="flex items-center space-x-1.5">
@@ -277,11 +278,11 @@
           <input id="slider-trail-length" type="range" min="30" max="500" value="200" class="w-full accent-purple-400 bg-slate-800 rounded-lg h-1.5 cursor-pointer">
 
           <div class="flex justify-between text-[10px] pt-1">
-            <span class="text-slate-300">軌跡カラーモード:</span>
+            <span class="text-slate-300">3D軌跡ヒートマップ色切替:</span>
             <select id="select-color-mode" class="bg-slate-900 text-purple-200 border border-purple-400/40 rounded px-1 py-0.5 text-[10px]">
-              <option value="time">時間グラデーション</option>
+              <option value="speed">移動速度グラデーション</option>
               <option value="elevation">高度 (Y軸) マッピング</option>
-              <option value="speed">移動速度マッピング</option>
+              <option value="time">時間経過</option>
             </select>
           </div>
         </div>
@@ -413,8 +414,8 @@
         </div>
 
         <div class="p-3 glass-card rounded-2xl border border-purple-500/20">
-          <h3 class="font-semibold text-purple-400 text-sm mb-1">3. 軌跡アナライザー (Trajectory Window)</h3>
-          <p>移動の足跡(XZ平面2Dプロット)や高度変化(Y軸時系列)を記録し、JSON/CSV形式でのダウンロードが可能です。</p>
+          <h3 class="font-semibold text-purple-400 text-sm mb-1">3. 3D立体チューブ軌跡 & ピラー表示</h3>
+          <p>移動の足跡を空間上の立体Tubeメッシュおよび地面への垂直ドロップライン（Pillars）でビジュアル化。JSON/CSVでのデータ書き出しも可能です。</p>
         </div>
       </div>
 
@@ -428,10 +429,10 @@
 
   <script>
     /**
-     * iPhone Visual SLAM - Self-Positioning & Trajectory Analyzer Engine
+     * iPhone Visual SLAM Engine with Enhanced Volumetric 3D Trajectory Visualization
      */
 
-    // --- Global Application State ---
+    // --- Global State ---
     const state = {
       isTracking: false,
       activeMainView: 'camera', // 'camera' or '3d'
@@ -442,31 +443,31 @@
       lastFpsUpdate: performance.now(),
       lastFrameTime: performance.now(),
       
-      // Self-Positioning Metrics
+      // Self-Positioning Telemetry
       pose: {
         x: 0, y: 0, z: 0,
         pitch: 0, yaw: 0, roll: 0
       },
       lastPose: { x: 0, y: 0, z: 0 },
-      totalDistance: 0, // meters
-      currentSpeed: 0,  // m/s
-      confidence: 95,   // %
+      totalDistance: 0,
+      currentSpeed: 0,
+      confidence: 95,
 
-      // Trajectory Analyzer Settings
+      // Trajectory Analyzer Options
       maxTrailLength: 200,
-      colorMode: 'time', // 'time', 'elevation', 'speed'
-      activeTrajTab: '2d', // '2d', 'height', 'stats'
+      colorMode: 'speed', // 'speed', 'elevation', 'time'
+      activeTrajTab: '2d',
 
-      // Raw Gyro Sensors
+      // Gyro Sensor
       sensor: {
         alpha: 0, beta: 0, gamma: 0,
         initAlpha: null, initBeta: null, initGamma: null
       },
 
-      // Visual Tracking Points
+      // Tracking Data
       trackedFeatures: [],
       pointCloud3D: [],
-      trajectory3D: [] // Array of {x, y, z, timestamp, speed}
+      trajectory3D: []
     };
 
     // --- DOM Elements ---
@@ -519,7 +520,6 @@
     const btnCloseModal = document.getElementById('btn-close-modal');
     const btnModalGotit = document.getElementById('btn-modal-gotit');
 
-    // Trajectory Window Elements
     const trajectoryWindow = document.getElementById('trajectory-window');
     const btnToggleTrajWin = document.getElementById('btn-toggle-traj-win');
     const btnTrajClose = document.getElementById('btn-traj-close');
@@ -546,13 +546,16 @@
     const btnExportJSON = document.getElementById('btn-export-json');
     const btnExportCSV = document.getElementById('btn-export-csv');
 
-    // --- Three.js Scene Variables ---
+    // --- Three.js Variables ---
     let scene, camera3D, renderer3D;
-    let trajectoryLine, pointCloudParticles, selfAvatarMesh;
-    let pointCloudGeometry, trajectoryGeometry;
+    let trajectoryMeshGroup, pillarsGroup, startMarkerMesh, currentMarkerMesh;
+    let pointCloudParticles, selfAvatarMesh, auraRingMesh;
+    let pointCloudGeometry;
+    let is3DTouchDragging = false, previousTouchX = 0, previousTouchY = 0;
+    let orbitAzimuth = 0, orbitElevation = 0.5, orbitDistance = 5.0;
 
     // ==========================================
-    // 1. INIT & SETUP
+    // 1. INITIALIZATION & SETUP
     // ==========================================
     window.addEventListener('DOMContentLoaded', async () => {
       initThreeJS();
@@ -563,8 +566,7 @@
       setupEventListeners();
       updateViewportLayout();
 
-      // Safari video autoplay failover touch capture
-      document.body.addEventListener('touchstart', ensureVideoPlaying, { once: true });
+      document.body.addEventListener('touchstart', ensureVideoPlaying, { passive: true });
     });
 
     function resizeCanvases() {
@@ -612,19 +614,13 @@
         try {
           stream = await navigator.mediaDevices.getUserMedia(constraints);
         } catch (e) {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: false
-          });
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         }
 
         videoElem.srcObject = stream;
-        await new Promise((resolve) => {
-          videoElem.onloadedmetadata = () => {
-            videoElem.play().catch(console.error);
-            resolve();
-          };
-        });
+        
+        // Ensure video is playing for Safari
+        await videoElem.play().catch(e => console.log("Safari auto play caught:", e));
 
         btnCamRetry.classList.add('hidden');
         setStatus('カメラ起動完了', 'bg-emerald-500');
@@ -648,7 +644,7 @@
     }
 
     // ==========================================
-    // 2. SENSOR & EVENT LISTENERS
+    // 2. EVENT LISTENERS & TOUCH CONTROLS
     // ==========================================
     function setupEventListeners() {
       btnStart.addEventListener('click', toggleSLAM);
@@ -659,7 +655,7 @@
       btnToggleView.addEventListener('click', toggleMainView);
       pipWindow.addEventListener('click', toggleMainView);
 
-      // Trajectory Window Listeners
+      // Trajectory Window Controls
       btnToggleTrajWin.addEventListener('click', toggleTrajectoryWindow);
       btnTrajClose.addEventListener('click', toggleTrajectoryWindow);
       btnTrajPin.addEventListener('click', () => trajectoryWindow.classList.toggle('max-h-[90vh]'));
@@ -685,6 +681,33 @@
       btnModalGotit.addEventListener('click', () => modalInfo.classList.add('opacity-0', 'pointer-events-none'));
 
       window.addEventListener('deviceorientation', handleOrientation, true);
+
+      // 3D Orbit Camera Touch Gesture Handling
+      const threeContainer = document.getElementById('three-viewport');
+      threeContainer.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+          is3DTouchDragging = true;
+          previousTouchX = e.touches[0].clientX;
+          previousTouchY = e.touches[0].clientY;
+        }
+      }, { passive: true });
+
+      threeContainer.addEventListener('touchmove', (e) => {
+        if (is3DTouchDragging && e.touches.length === 1) {
+          const deltaX = e.touches[0].clientX - previousTouchX;
+          const deltaY = e.touches[0].clientY - previousTouchY;
+
+          orbitAzimuth -= deltaX * 0.01;
+          orbitElevation = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, orbitElevation + deltaY * 0.01));
+
+          previousTouchX = e.touches[0].clientX;
+          previousTouchY = e.touches[0].clientY;
+        }
+      }, { passive: true });
+
+      threeContainer.addEventListener('touchend', () => {
+        is3DTouchDragging = false;
+      });
     }
 
     function toggleTrajectoryWindow() {
@@ -758,22 +781,35 @@
       yawElem.textContent = `${state.pose.yaw}°`;
     }
 
+    // --- FIX FOR CAMERA BLANK/FREEZE BUG ---
     function toggleMainView() {
       state.activeMainView = (state.activeMainView === 'camera') ? '3d' : 'camera';
       updateViewportLayout();
     }
 
     function updateViewportLayout() {
+      ensureVideoPlaying();
+
       if (state.activeMainView === 'camera') {
-        cameraViewport.className = "absolute inset-0 w-full h-full z-10 opacity-100 transition-all duration-300";
+        // Full Camera View Mode
+        cameraViewport.className = "absolute inset-0 w-full h-full z-10 opacity-100 transition-all duration-300 pointer-events-auto";
         threeViewport.className = "absolute inset-0 w-full h-full z-0 opacity-0 pointer-events-none transition-all duration-300";
         
+        // Move camera element back to main viewport container
+        if (!cameraViewport.contains(videoElem)) {
+          cameraViewport.insertBefore(videoElem, overlayCanvas);
+        }
+        pipWindow.innerHTML = '';
         pipWindow.appendChild(threeCanvasContainer);
         viewModeLabel.textContent = "カメラ";
       } else {
-        threeViewport.className = "absolute inset-0 w-full h-full z-10 opacity-100 transition-all duration-300";
+        // Full 3D Map Mode
+        threeViewport.className = "absolute inset-0 w-full h-full z-10 opacity-100 transition-all duration-300 pointer-events-auto";
         cameraViewport.className = "absolute inset-0 w-full h-full z-0 opacity-0 pointer-events-none transition-all duration-300";
 
+        if (!threeViewport.contains(threeCanvasContainer)) {
+          threeViewport.insertBefore(threeCanvasContainer, threeViewport.firstChild);
+        }
         pipWindow.innerHTML = '';
         pipWindow.appendChild(videoElem);
         
@@ -781,6 +817,8 @@
       }
       
       resizeCanvases();
+      // Force Safari to keep decoded video frames active
+      videoElem.play().catch(() => {});
     }
 
     function toggleVectors() {
@@ -790,7 +828,7 @@
     }
 
     // ==========================================
-    // 3. SLAM CORE ENGINE & POSITIONING
+    // 3. SLAM ENGINE & TRACKING LOOP
     // ==========================================
     function toggleSLAM() {
       ensureVideoPlaying();
@@ -826,17 +864,15 @@
         procCtx.drawImage(videoElem, 0, 0, pw, ph);
         const frameData = procCtx.getImageData(0, 0, pw, ph);
 
-        // Feature extraction & tracking
         updateVisualFeatureTracking(frameData, pw, ph, deltaTime);
       }
 
-      // Render visual outputs
       render2DTrackingOverlay();
       render2DRadarMap();
       renderTrajectoryCanvases();
       update3DScene();
 
-      // FPS Metrics
+      // FPS Calculation
       state.frameCount++;
       if (now - state.lastFpsUpdate >= 500) {
         state.fps = Math.round((state.frameCount * 1000) / (now - state.lastFpsUpdate));
@@ -851,7 +887,7 @@
     function updateVisualFeatureTracking(imgData, width, height, dt) {
       const data = imgData.data;
 
-      // Extract new FAST corner points
+      // Extract FAST corners
       if (state.trackedFeatures.length < 45) {
         const newFeatures = detectFASTCorners(data, width, height, 25);
         for (let nf of newFeatures) {
@@ -873,7 +909,7 @@
         }
       }
 
-      // Optical flow motion tracking
+      // Optical flow motion calculation
       const updatedFeatures = [];
       let avgDx = 0;
       let avgDy = 0;
@@ -920,7 +956,7 @@
       state.trackedFeatures = updatedFeatures;
       statFeatures.textContent = state.trackedFeatures.length;
 
-      // Update Self-Positioning Odometry
+      // Update Self-Position Odometry
       if (updatedFeatures.length > 0) {
         avgDx /= updatedFeatures.length;
         avgDy /= updatedFeatures.length;
@@ -934,7 +970,6 @@
         state.pose.y += moveY;
         state.pose.z += moveZ;
 
-        // Calculate step distance & speed
         const stepDist = Math.hypot(
           state.pose.x - state.lastPose.x,
           state.pose.y - state.lastPose.y,
@@ -945,14 +980,14 @@
           state.totalDistance += stepDist;
           state.currentSpeed = dt > 0 ? (stepDist / dt) : 0;
         } else {
-          state.currentSpeed *= 0.8;
+          state.currentSpeed *= 0.85;
         }
 
         state.lastPose = { x: state.pose.x, y: state.pose.y, z: state.pose.z };
         state.confidence = Math.min(99, Math.max(40, Math.round((updatedFeatures.length / 45) * 100)));
       }
 
-      // Update UI Telemetry
+      // Update Telemetry Displays
       posXElem.textContent = state.pose.x.toFixed(2);
       posYElem.textContent = state.pose.y.toFixed(2);
       posZElem.textContent = state.pose.z.toFixed(2);
@@ -960,7 +995,7 @@
       statSpeedElem.textContent = `${state.currentSpeed.toFixed(2)}m/s`;
       posConfidenceElem.textContent = `${state.confidence}%`;
 
-      // Record Trajectory Data Points
+      // Record trajectory node
       const nowTs = performance.now();
       const currentPosNode = {
         x: state.pose.x,
@@ -972,10 +1007,11 @@
 
       if (state.trajectory3D.length === 0 || 
           Math.hypot(currentPosNode.x - state.trajectory3D[state.trajectory3D.length - 1].x,
-                     currentPosNode.z - state.trajectory3D[state.trajectory3D.length - 1].z) > 0.03) {
+                     currentPosNode.z - state.trajectory3D[state.trajectory3D.length - 1].z) > 0.02) {
         state.trajectory3D.push(currentPosNode);
       }
 
+      // Record 3D Point cloud landmarks
       state.trackedFeatures.forEach(feat => {
         const pxWorld = state.pose.x + feat.world3D.x;
         const pyWorld = state.pose.y + feat.world3D.y;
@@ -1025,14 +1061,13 @@
     }
 
     // ==========================================
-    // 4. TRAJECTORY ANALYZER RENDERERS (2D/Height)
+    // 4. TRAJECTORY ANALYZER & 2D RENDERING
     // ==========================================
     function renderTrajectoryCanvases() {
       if (trajectoryWindow.classList.contains('pointer-events-none')) return;
 
       const traj = state.trajectory3D.slice(-state.maxTrailLength);
       
-      // Update Bounding Envelope Metrics
       if (traj.length > 0) {
         let minX = Infinity, maxX = -Infinity;
         let minZ = Infinity, maxZ = -Infinity;
@@ -1050,7 +1085,7 @@
         statKeyframes.textContent = `${state.trajectory3D.length} 点`;
       }
 
-      // 1. Render 2D Top-Down Path Plotter (XZ Plane)
+      // 2D Footprint Plan (XZ Plane)
       if (state.activeTrajTab === '2d' && trajCanvas2D) {
         const w = trajCanvas2D.width;
         const h = trajCanvas2D.height;
@@ -1059,10 +1094,9 @@
 
         trajCtx2D.clearRect(0, 0, w, h);
 
-        // Draw Grid Lines
         trajCtx2D.strokeStyle = 'rgba(192, 132, 252, 0.15)';
         trajCtx2D.lineWidth = 1;
-        const scale = 30; // 30 pixels per meter
+        const scale = 30;
 
         for (let x = 0; x < w; x += scale) {
           trajCtx2D.beginPath(); trajCtx2D.moveTo(x, 0); trajCtx2D.lineTo(x, h); trajCtx2D.stroke();
@@ -1071,7 +1105,6 @@
           trajCtx2D.beginPath(); trajCtx2D.moveTo(0, y); trajCtx2D.lineTo(w, y); trajCtx2D.stroke();
         }
 
-        // Origin Cross
         trajCtx2D.strokeStyle = '#c084fc';
         trajCtx2D.beginPath();
         trajCtx2D.arc(cx, cy, 4, 0, Math.PI * 2);
@@ -1091,14 +1124,13 @@
             trajCtx2D.moveTo(x1, y1);
             trajCtx2D.lineTo(x2, y2);
 
-            // Color Coding Logic
             if (state.colorMode === 'time') {
               const alpha = i / traj.length;
               trajCtx2D.strokeStyle = `rgba(192, 132, 252, ${0.2 + alpha * 0.8})`;
             } else if (state.colorMode === 'elevation') {
               const hue = Math.min(280, Math.max(160, 220 + p2.y * 60));
               trajCtx2D.strokeStyle = `hsl(${hue}, 80%, 60%)`;
-            } else { // Speed mode
+            } else {
               const spd = Math.min(1.0, p2.speed);
               trajCtx2D.strokeStyle = `rgb(${Math.floor(spd * 255)}, ${Math.floor((1 - spd) * 200)}, 220)`;
             }
@@ -1107,7 +1139,6 @@
             trajCtx2D.stroke();
           }
 
-          // Live Camera Heading Pointer
           const head = traj[traj.length - 1];
           const headX = cx + head.x * scale;
           const headY = cy + head.z * scale;
@@ -1119,14 +1150,13 @@
         }
       }
 
-      // 2. Render Height Profile Graph Canvas (Y over Time)
+      // Height Profile Graph
       if (state.activeTrajTab === 'height' && trajCanvasHeight) {
         const w = trajCanvasHeight.width;
         const h = trajCanvasHeight.height;
 
         trajCtxHeight.clearRect(0, 0, w, h);
 
-        // Center line (Y = 0)
         trajCtxHeight.strokeStyle = 'rgba(56, 189, 248, 0.3)';
         trajCtxHeight.beginPath();
         trajCtxHeight.moveTo(0, h / 2);
@@ -1141,7 +1171,7 @@
           const stepX = w / (traj.length - 1);
           traj.forEach((p, idx) => {
             const px = idx * stepX;
-            const py = h / 2 - p.y * 40; // Scale 40px per meter
+            const py = h / 2 - p.y * 40;
             if (idx === 0) trajCtxHeight.moveTo(px, py);
             else trajCtxHeight.lineTo(px, py);
           });
@@ -1151,9 +1181,6 @@
       }
     }
 
-    // ==========================================
-    // 5. EXPORT & AR OVERLAYS
-    // ==========================================
     function exportTrajectoryJSON() {
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.trajectory3D, null, 2));
       const downloadAnchor = document.createElement('a');
@@ -1186,12 +1213,10 @@
 
       overlayCtx.clearRect(0, 0, width, height);
 
-      // Render AR Self-Position Coordinate Overlay directly on video
       overlayCtx.font = 'bold 11px monospace';
       overlayCtx.fillStyle = '#38bdf8';
       overlayCtx.fillText(`[自己位置]: X:${state.pose.x.toFixed(2)} Y:${state.pose.y.toFixed(2)} Z:${state.pose.z.toFixed(2)}`, width / 2 - 100, height / 2 + 50);
 
-      // Feature Points & Displacement Lines
       state.trackedFeatures.forEach(feat => {
         const screenX = feat.x * scaleX;
         const screenY = feat.y * scaleY;
@@ -1220,7 +1245,6 @@
 
       radarCtx.clearRect(0, 0, rw, rh);
 
-      // Radar Concentric Circles
       radarCtx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
       radarCtx.lineWidth = 1;
       radarCtx.beginPath();
@@ -1228,13 +1252,11 @@
       radarCtx.arc(cx, cy, 40, 0, Math.PI * 2);
       radarCtx.stroke();
 
-      // Axis Lines
       radarCtx.beginPath();
       radarCtx.moveTo(cx, 0); radarCtx.lineTo(cx, rh);
       radarCtx.moveTo(0, cy); radarCtx.lineTo(rw, cy);
       radarCtx.stroke();
 
-      // Trajectory Path on Radar
       if (state.trajectory3D.length > 1) {
         radarCtx.beginPath();
         radarCtx.strokeStyle = '#38bdf8';
@@ -1248,7 +1270,6 @@
         radarCtx.stroke();
       }
 
-      // Self-Position Marker
       const selfRx = cx + state.pose.x * 12;
       const selfRy = cy + state.pose.z * 12;
 
@@ -1259,7 +1280,7 @@
     }
 
     // ==========================================
-    // 6. THREE.JS 3D SCENE MANAGEMENT
+    // 5. ENHANCED 3D SCENE & VOLUMETRIC TUBE TRAJECTORY
     // ==========================================
     function initThreeJS() {
       const width = window.innerWidth;
@@ -1269,7 +1290,7 @@
       scene.background = new THREE.Color(0x0a0c16);
 
       camera3D = new THREE.PerspectiveCamera(60, width / height, 0.1, 100);
-      camera3D.position.set(0, 2.8, 4.5);
+      camera3D.position.set(0, 2.5, 4.5);
       camera3D.lookAt(0, 0, 0);
 
       renderer3D = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -1281,24 +1302,49 @@
       const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
       scene.add(ambientLight);
 
-      const grid = new THREE.GridHelper(16, 16, 0x38bdf8, 0x1e293b);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      // Spatial Grid
+      const grid = new THREE.GridHelper(20, 20, 0x38bdf8, 0x1e293b);
       grid.position.y = -0.8;
       scene.add(grid);
 
-      // Self-Position Avatar (Glowing Pyramid Frustum)
-      const avatarGeo = new THREE.ConeGeometry(0.25, 0.45, 4);
-      const avatarMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, wireframe: true });
+      // Trajectory Volumetric Tube & Pillar Groups
+      trajectoryMeshGroup = new THREE.Group();
+      scene.add(trajectoryMeshGroup);
+
+      pillarsGroup = new THREE.Group();
+      scene.add(pillarsGroup);
+
+      // Start Marker Sphere (S)
+      const startGeo = new THREE.SphereGeometry(0.12, 16, 16);
+      const startMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7 });
+      startMarkerMesh = new THREE.Mesh(startGeo, startMat);
+      scene.add(startMarkerMesh);
+
+      // Current Marker Sphere (C)
+      const currentGeo = new THREE.SphereGeometry(0.14, 16, 16);
+      const currentMat = new THREE.MeshStandardMaterial({ color: 0xf43f5e, emissive: 0xe11d48 });
+      currentMarkerMesh = new THREE.Mesh(currentGeo, currentMat);
+      scene.add(currentMarkerMesh);
+
+      // Current Position Camera Cone Pointer
+      const avatarGeo = new THREE.ConeGeometry(0.2, 0.4, 4);
+      const avatarMat = new THREE.MeshStandardMaterial({ color: 0x10b981, wireframe: false });
       selfAvatarMesh = new THREE.Mesh(avatarGeo, avatarMat);
       selfAvatarMesh.rotation.x = Math.PI / 2;
       scene.add(selfAvatarMesh);
 
-      // Trajectory Line
-      trajectoryGeometry = new THREE.BufferGeometry();
-      const trajectoryMat = new THREE.LineBasicMaterial({ color: 0x10b981, linewidth: 3 });
-      trajectoryLine = new THREE.Line(trajectoryGeometry, trajectoryMat);
-      scene.add(trajectoryLine);
+      // Pulsating Aura Ring beneath avatar
+      const auraGeo = new THREE.RingGeometry(0.25, 0.35, 32);
+      const auraMat = new THREE.MeshBasicMaterial({ color: 0x10b981, side: THREE.DoubleSide, transparent: true, opacity: 0.6 });
+      auraRingMesh = new THREE.Mesh(auraGeo, auraMat);
+      auraRingMesh.rotation.x = Math.PI / 2;
+      scene.add(auraRingMesh);
 
-      // Point Cloud Landmarks
+      // Point Cloud
       pointCloudGeometry = new THREE.BufferGeometry();
       const pointCloudMat = new THREE.PointsMaterial({
         color: 0xc084fc,
@@ -1313,17 +1359,94 @@
     function update3DScene() {
       if (!scene) return;
 
-      // Update Self Avatar position in 3D Space
+      // Update Self Avatar
       selfAvatarMesh.position.set(state.pose.x, state.pose.y, state.pose.z);
       selfAvatarMesh.rotation.x = (state.pose.pitch * Math.PI) / 180;
       selfAvatarMesh.rotation.y = (state.pose.yaw * Math.PI) / 180;
       selfAvatarMesh.rotation.z = (state.pose.roll * Math.PI) / 180;
 
-      if (state.trajectory3D.length > 0) {
+      auraRingMesh.position.set(state.pose.x, -0.79, state.pose.z);
+      const timeSec = performance.now() * 0.003;
+      auraRingMesh.scale.setScalar(1 + Math.sin(timeSec) * 0.2);
+
+      currentMarkerMesh.position.set(state.pose.x, state.pose.y, state.pose.z);
+
+      // Reconstruct Volumetric 3D Tube Ribbon Trajectory
+      if (state.trajectory3D.length > 1) {
+        // Clear previous meshes
+        while (trajectoryMeshGroup.children.length > 0) {
+          const obj = trajectoryMeshGroup.children.pop();
+          if (obj.geometry) obj.geometry.dispose();
+        }
+        while (pillarsGroup.children.length > 0) {
+          const obj = pillarsGroup.children.pop();
+          if (obj.geometry) obj.geometry.dispose();
+        }
+
         const points = state.trajectory3D.map(p => new THREE.Vector3(p.x, p.y, p.z));
-        trajectoryGeometry.setFromPoints(points);
+        startMarkerMesh.position.copy(points[0]);
+
+        // Create Smooth Curve Tube Mesh
+        const curve = new THREE.CatmullRomCurve3(points);
+        const tubularSegments = Math.min(points.length * 4, 300);
+        const tubeGeometry = new THREE.TubeGeometry(curve, tubularSegments, 0.04, 8, false);
+
+        // Generate Color Heatmap Buffer
+        const count = tubeGeometry.attributes.position.count;
+        const colors = new Float32Array(count * 3);
+
+        for (let i = 0; i < count; i++) {
+          const progress = i / count;
+          let color = new THREE.Color();
+
+          if (state.colorMode === 'speed') {
+            const spd = Math.min(1.0, state.currentSpeed * 2.0);
+            color.setHSL(0.6 - spd * 0.6, 0.9, 0.5); // Blue to Red
+          } else if (state.colorMode === 'elevation') {
+            const yVal = points[Math.floor(progress * (points.length - 1))].y;
+            const hue = Math.min(0.8, Math.max(0.4, 0.5 + yVal * 0.4));
+            color.setHSL(hue, 0.9, 0.5);
+          } else {
+            color.setHSL(progress * 0.75, 0.85, 0.55); // Time Gradient
+          }
+
+          colors[i * 3] = color.r;
+          colors[i * 3 + 1] = color.g;
+          colors[i * 3 + 2] = color.b;
+        }
+
+        tubeGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        const tubeMaterial = new THREE.MeshStandardMaterial({
+          vertexColors: true,
+          roughness: 0.3,
+          metalness: 0.2
+        });
+
+        const tubeMesh = new THREE.Mesh(tubeGeometry, tubeMaterial);
+        trajectoryMeshGroup.add(tubeMesh);
+
+        // Add Vertical Drop-Line Pillars to Ground
+        const pillarStep = Math.max(1, Math.floor(points.length / 25));
+        for (let i = 0; i < points.length; i += pillarStep) {
+          const pt = points[i];
+          const pillarGeo = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(pt.x, pt.y, pt.z),
+            new THREE.Vector3(pt.x, -0.8, pt.z)
+          ]);
+          const pillarMat = new THREE.LineDashedMaterial({
+            color: 0x38bdf8,
+            dashSize: 0.08,
+            gapSize: 0.08,
+            opacity: 0.5,
+            transparent: true
+          });
+          const line = new THREE.Line(pillarGeo, pillarMat);
+          line.computeLineDistances();
+          pillarsGroup.add(line);
+        }
       }
 
+      // Point cloud particle positions
       if (state.pointCloud3D.length > 0) {
         const positions = new Float32Array(state.pointCloud3D.length * 3);
         state.pointCloud3D.forEach((p, idx) => {
@@ -1334,12 +1457,18 @@
         pointCloudGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
       }
 
-      // Smooth camera follow mode in 3D View
+      // Orbit camera position calculation
       if (state.activeMainView === '3d') {
-        camera3D.position.x += (state.pose.x + 1.8 - camera3D.position.x) * 0.05;
-        camera3D.position.y += (state.pose.y + 1.8 - camera3D.position.y) * 0.05;
-        camera3D.position.z += (state.pose.z + 3.8 - camera3D.position.z) * 0.05;
-        camera3D.lookAt(state.pose.x, state.pose.y, state.pose.z);
+        const targetX = state.pose.x;
+        const targetY = state.pose.y;
+        const targetZ = state.pose.z;
+
+        const camX = targetX + orbitDistance * Math.cos(orbitElevation) * Math.sin(orbitAzimuth);
+        const camY = targetY + orbitDistance * Math.sin(orbitElevation);
+        const camZ = targetZ + orbitDistance * Math.cos(orbitElevation) * Math.cos(orbitAzimuth);
+
+        camera3D.position.set(camX, camY, camZ);
+        camera3D.lookAt(targetX, targetY, targetZ);
       }
 
       renderer3D.render(scene, camera3D);
@@ -1354,7 +1483,14 @@
       state.pointCloud3D = [];
       state.trajectory3D = [];
 
-      trajectoryGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(0), 3));
+      while (trajectoryMeshGroup.children.length > 0) {
+        const obj = trajectoryMeshGroup.children.pop();
+        if (obj.geometry) obj.geometry.dispose();
+      }
+      while (pillarsGroup.children.length > 0) {
+        const obj = pillarsGroup.children.pop();
+        if (obj.geometry) obj.geometry.dispose();
+      }
       pointCloudGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(0), 3));
 
       renderTrajectoryCanvases();

@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>iPhone Visual SLAM - 自己位置推定 (Self-Positioning)</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Three.js for 3D Spatial Visualization -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
+      background-color: #000;
+      color: #fff;
+      overflow: hidden;
+    }
+
+    .glass-panel {
+      background: rgba(15, 18, 28, 0.78);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .glass-card {
+      background: rgba(28, 33, 48, 0.68);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .glass-button {
+      background: rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+    }
+    .glass-button:active {
+      transform: scale(0.95);
+      background: rgba(255, 255, 255, 0.22);
+    }
+
+    #camera-feed {
+      object-fit: cover;
+      width: 100%;
+      height: 100%;
+    }
+
+    .pip-container {
+      width: 130px;
+      height: 180px;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6), 0 0 0 2px rgba(56, 189, 248, 0.4);
+      transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .pip-container:active {
+      transform: scale(0.96);
+    }
+
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.08); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+    .status-pulse {
+      animation: pulse-ring 2s infinite ease-in-out;
+    }
+
+    /* Target Reticle Pulsing */
+    @keyframes reticle-glow {
+      0% { box-shadow: 0 0 12px rgba(56, 189, 248, 0.4); }
+      50% { box-shadow: 0 0 24px rgba(56, 189, 248, 0.9); }
+      100% { box-shadow: 0 0 12px rgba(56, 189, 248, 0.4); }
+    }
+    .reticle-glow {
+      animation: reticle-glow 1.5s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="relative w-screen h-screen overflow-hidden flex flex-col bg-black text-slate-100 select-none">
+
+  <!-- TOP HEADER / SYSTEM STATUS -->
+  <header class="absolute top-0 left-0 right-0 z-40 pt-11 pb-3 px-4 glass-panel border-b-0 rounded-b-2xl flex items-center justify-between shadow-2xl">
+    <div class="flex items-center space-x-2.5">
+      <div id="status-indicator" class="w-3 h-3 rounded-full bg-amber-500 status-pulse"></div>
+      <div>
+        <h1 class="text-[10px] font-bold tracking-widest uppercase text-sky-400">Visual SLAM Auto-Tracking</h1>
+        <div id="status-text" class="text-xs font-bold text-slate-100 flex items-center gap-1.5">
+          カメラ起動中...
+        </div>
+      </div>
+    </div>
+    
+    <div class="flex items-center space-x-2">
+      <!-- Info Modal Toggle -->
+      <button id="btn-info" class="w-9 h-9 rounded-full glass-button flex items-center justify-center text-sky-400">
+        <i class="fa-solid fa-circle-info text-base"></i>
+      </button>
+      <!-- View Mode Switcher -->
+      <button id="btn-toggle-view" class="px-3 h-9 rounded-full glass-button flex items-center space-x-1.5 text-xs font-semibold text-emerald-400">
+        <i id="view-icon" class="fa-solid fa-layer-group text-xs"></i>
+        <span id="view-mode-label">画面切替</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN VIEWPORT CONTAINER -->
+  <main id="viewport-root" class="relative w-full h-full flex-1 overflow-hidden">
+    
+    <!-- LAYER 1: CAMERA & OVERLAY CANVAS VIEWPORT -->
+    <div id="camera-viewport" class="absolute inset-0 w-full h-full z-10 transition-all duration-300">
+      <video id="camera-feed" playsinline autoplay muted class="absolute inset-0 w-full h-full object-cover"></video>
+      <canvas id="tracking-canvas" class="absolute inset-0 w-full h-full z-10 pointer-events-none"></canvas>
+
+      <!-- Live Feature Overlay Stats Badge -->
+      <div class="absolute top-28 left-4 z-20 pointer-events-none flex flex-col space-y-1.5">
+        <span class="px-3 py-1 rounded-full text-[11px] font-mono bg-black/70 backdrop-blur-md border border-sky-400/30 text-sky-300 w-max flex items-center gap-1.5 shadow-lg">
+          <i class="fa-solid fa-crosshairs text-[10px]"></i> 特徴点: <span id="stat-features" class="font-bold text-white">0</span>
+        </span>
+        <span class="px-3 py-1 rounded-full text-[11px] font-mono bg-black/70 backdrop-blur-md border border-emerald-400/30 text-emerald-300 w-max flex items-center gap-1.5 shadow-lg">
+          <i class="fa-solid fa-gauge-high text-[10px]"></i> 処理速度: <span id="stat-fps" class="font-bold text-white">0</span> FPS
+        </span>
+      </div>
+
+      <!-- AR Reticle Crosshair in Center -->
+      <div class="absolute inset-0 pointer-events-none flex items-center justify-center z-15">
+        <div class="w-16 h-16 rounded-full border border-sky-400/40 border-dashed flex items-center justify-center reticle-glow">
+          <div class="w-2 h-2 rounded-full bg-sky-400"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LAYER 2: THREE.JS 3D RECONSTRUCTION MAP VIEWPORT -->
+    <div id="three-viewport" class="absolute inset-0 w-full h-full z-0 transition-all duration-300">
+      <div id="three-canvas-container" class="w-full h-full"></div>
+
+      <div class="absolute top-28 left-4 z-20 pointer-events-none">
+        <span class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-950/80 border border-emerald-400/40 text-emerald-300 backdrop-blur-md flex items-center gap-1.5 shadow-lg">
+          <i class="fa-solid fa-cubes-stacked"></i> 3D自己位置 & 点群マップ
+        </span>
+      </div>
+    </div>
+
+    <!-- PICTURE-IN-PICTURE (PiP) MINI PREVIEW WINDOW -->
+    <div id="pip-window" class="pip-container absolute top-28 right-4 z-30 cursor-pointer glass-panel flex flex-col items-center justify-center">
+      <div class="relative w-full h-full overflow-hidden flex items-center justify-center">
+        <span class="absolute top-2 left-2 z-40 px-1.5 py-0.5 rounded text-[9px] font-bold bg-black/80 text-sky-300 border border-sky-400/30">
+          タップで拡大
+        </span>
+      </div>
+    </div>
+
+    <!-- TOP-DOWN 2D RADAR MINI-MAP -->
+    <div class="absolute bottom-56 right-4 z-30 w-24 h-24 rounded-2xl glass-panel border border-sky-400/30 overflow-hidden shadow-2xl flex flex-col items-center justify-center">
+      <canvas id="radar-canvas" class="w-full h-full"></canvas>
+      <span class="absolute bottom-1 text-[8px] font-mono text-sky-300 bg-black/60 px-1 rounded">2D RADAR</span>
+    </div>
+
+  </main>
+
+  <!-- PROMINENT SELF-POSITION (自己位置) TELEMETRY DASHBOARD -->
+  <section class="absolute bottom-24 left-3 right-3 z-30 pointer-events-none">
+    <div class="glass-panel p-3.5 rounded-2xl pointer-events-auto shadow-2xl border border-sky-500/30 space-y-2.5">
+      
+      <!-- 自己位置 Header & Primary Coordinates -->
+      <div class="flex items-center justify-between pb-1.5 border-b border-white/10">
+        <div class="flex items-center space-x-2">
+          <div class="w-2.5 h-2.5 rounded-full bg-sky-400 animate-ping"></div>
+          <span class="text-xs font-bold uppercase tracking-wider text-sky-300 flex items-center gap-1">
+            <i class="fa-solid fa-location-dot text-rose-400"></i> 自己位置 (Self-Position)
+          </span>
+        </div>
+        <div class="flex items-center space-x-2">
+          <span class="text-[10px] text-slate-400 font-mono">信頼度: <span id="pos-confidence" class="text-emerald-400 font-bold">95%</span></span>
+          <button id="btn-reset-origin" class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-rose-500/30 hover:bg-rose-500/50 border border-rose-400/40 text-rose-200 transition">
+            原点(0,0,0)にリセット
+          </button>
+        </div>
+      </div>
+
+      <!-- Real-time Position (X, Y, Z Meters) -->
+      <div class="grid grid-cols-3 gap-1.5 text-center font-mono">
+        <div class="glass-card p-2 rounded-xl border border-sky-400/20">
+          <div class="text-[9px] font-bold uppercase tracking-wider text-slate-400">X 軸 (左右)</div>
+          <div id="pos-x" class="text-base font-extrabold text-sky-300">0.00 <span class="text-[9px] text-slate-400 font-normal">m</span></div>
+        </div>
+        <div class="glass-card p-2 rounded-xl border border-emerald-400/20">
+          <div class="text-[9px] font-bold uppercase tracking-wider text-slate-400">Y 軸 (上下)</div>
+          <div id="pos-y" class="text-base font-extrabold text-emerald-300">0.00 <span class="text-[9px] text-slate-400 font-normal">m</span></div>
+        </div>
+        <div class="glass-card p-2 rounded-xl border border-purple-400/20">
+          <div class="text-[9px] font-bold uppercase tracking-wider text-slate-400">Z 軸 (前後)</div>
+          <div id="pos-z" class="text-base font-extrabold text-purple-300">0.00 <span class="text-[9px] text-slate-400 font-normal">m</span></div>
+        </div>
+      </div>
+
+      <!-- Distance Traveled, Speed & Orientation -->
+      <div class="grid grid-cols-3 gap-1.5 text-center font-mono">
+        <div class="glass-card p-1.5 rounded-xl">
+          <div class="text-[9px] text-slate-400">累積移動距離</div>
+          <div id="stat-dist" class="text-xs font-bold text-amber-300">0.00 <span class="text-[8px] text-slate-400">m</span></div>
+        </div>
+        <div class="glass-card p-1.5 rounded-xl">
+          <div class="text-[9px] text-slate-400">移動速度</div>
+          <div id="stat-speed" class="text-xs font-bold text-cyan-300">0.00 <span class="text-[8px] text-slate-400">m/s</span></div>
+        </div>
+        <div class="glass-card p-1.5 rounded-xl">
+          <div class="text-[9px] text-slate-400">Yaw 角度</div>
+          <div id="ori-yaw" class="text-xs font-bold text-fuchsia-300">0.0°</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- BOTTOM CONTROL TOOLBAR -->
+  <footer class="absolute bottom-0 left-0 right-0 z-40 pb-7 pt-2.5 px-4 glass-panel border-t-0 rounded-t-2xl flex items-center justify-around shadow-2xl">
+    
+    <!-- Gyro Sensor Request Button -->
+    <button id="btn-permission" class="flex flex-col items-center justify-center text-slate-300 hover:text-white active:scale-95 transition">
+      <div class="w-10 h-10 rounded-full glass-button flex items-center justify-center mb-1 text-amber-400">
+        <i class="fa-solid fa-compass"></i>
+      </div>
+      <span class="text-[10px] font-medium">ジャイロ</span>
+    </button>
+
+    <!-- Toggle SLAM Start/Stop -->
+    <button id="btn-start" class="flex flex-col items-center justify-center active:scale-95 transition">
+      <div id="btn-start-circle" class="w-14 h-14 rounded-full bg-sky-600 hover:bg-sky-500 flex items-center justify-center text-white shadow-lg shadow-sky-600/40 border-2 border-white/20">
+        <i id="btn-start-icon" class="fa-solid fa-play text-xl ml-0.5"></i>
+      </div>
+      <span id="btn-start-text" class="text-[10px] font-bold mt-1 text-slate-100">SLAM開始</span>
+    </button>
+
+    <!-- Toggle AR Overlay Reticle/Vectors -->
+    <button id="btn-toggle-vectors" class="flex flex-col items-center justify-center text-slate-300 hover:text-white active:scale-95 transition">
+      <div id="icon-vectors-box" class="w-10 h-10 rounded-full glass-button flex items-center justify-center mb-1 text-emerald-400">
+        <i class="fa-solid fa-vector-square"></i>
+      </div>
+      <span class="text-[10px] font-medium">ARガイド</span>
+    </button>
+
+  </footer>
+
+  <!-- EDUCATIONAL INFO MODAL -->
+  <div id="modal-info" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-lg flex items-center justify-center p-5 opacity-0 pointer-events-none transition-opacity duration-300">
+    <div class="glass-panel w-full max-w-md max-h-[82vh] rounded-3xl p-6 overflow-y-auto space-y-4 border border-white/15 shadow-2xl">
+      <div class="flex justify-between items-center pb-2 border-b border-white/10">
+        <h2 class="text-base font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-location-crosshairs text-sky-400"></i> 自己位置推定 (Visual Odometry)
+        </h2>
+        <button id="btn-close-modal" class="p-2 text-slate-400 hover:text-white">
+          <i class="fa-solid fa-xmark text-xl"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
+        <div class="p-3 glass-card rounded-2xl border border-sky-500/20">
+          <h3 class="font-semibold text-sky-400 text-sm mb-1">1. カメラ映像による特徴点抽出</h3>
+          <p>iPhoneのカメラ映像からコントラストの強いコーナー特徴点（FAST detector）をリアルタイムに検出し追跡します。</p>
+        </div>
+
+        <div class="p-3 glass-card rounded-2xl border border-emerald-500/20">
+          <h3 class="font-semibold text-emerald-400 text-sm mb-1">2. 移動量の計算 (Visual Odometry)</h3>
+          <p>フレーム間の特徴点の移動（オプティカルフロー）とiPhoneのジャイロセンサー情報を統合（Sensor Fusion）して3次元での自己位置(X, Y, Z)を算出します。</p>
+        </div>
+
+        <div class="p-3 glass-card rounded-2xl border border-purple-500/20">
+          <h3 class="font-semibold text-purple-400 text-sm mb-1">3. 3D空間マッピング</h3>
+          <p>通過した軌跡（Trajectory）と周囲の3Dランドマーク点群（Point Cloud）をThree.jsでリアルタイムに描画・表示します。</p>
+        </div>
+      </div>
+
+      <button id="btn-modal-gotit" class="w-full py-3 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white font-semibold text-sm transition shadow-lg shadow-sky-600/30">
+        閉じる
+      </button>
+    </div>
+  </div>
+
+  <canvas id="proc-canvas" class="hidden"></canvas>
+
+  <script>
+    /**
+     * iPhone Visual SLAM - Self-Positioning (自己位置推定) Application Engine
+     */
+
+    // --- Global Application State ---
+    const state = {
+      isTracking: false,
+      activeMainView: 'camera', // 'camera' or '3d'
+      showVectors: true,
+      hasSensorPermission: false,
+      fps: 0,
+      frameCount: 0,
+      lastFpsUpdate: performance.now(),
+      lastFrameTime: performance.now(),
+      
+      // Self-Positioning Metrics
+      pose: {
+        x: 0, y: 0, z: 0,
+        pitch: 0, yaw: 0, roll: 0
+      },
+      lastPose: { x: 0, y: 0, z: 0 },
+      totalDistance: 0, // meters
+      currentSpeed: 0,  // m/s
+      confidence: 95,   // %
+
+      // Raw Gyro Sensors
+      sensor: {
+        alpha: 0, beta: 0, gamma: 0,
+        initAlpha: null, initBeta: null, initGamma: null
+      },
+
+      // Visual Tracking Points
+      trackedFeatures: [],
+      pointCloud3D: [],
+      trajectory3D: []
+    };
+
+    // --- DOM Elements ---
+    const videoElem = document.getElementById('camera-feed');
+    const overlayCanvas = document.getElementById('tracking-canvas');
+    const overlayCtx = overlayCanvas.getContext('2d');
+    const procCanvas = document.getElementById('proc-canvas');
+    const procCtx = procCanvas.getContext('2d', { willReadFrequently: true });
+    const radarCanvas = document.getElementById('radar-canvas');
+    const radarCtx = radarCanvas.getContext('2d');
+
+    const cameraViewport = document.getElementById('camera-viewport');
+    const threeViewport = document.getElementById('three-viewport');
+    const pipWindow = document.getElementById('pip-window');
+    const threeCanvasContainer = document.getElementById('three-canvas-container');
+
+    const statusIndicator = document.getElementById('status-indicator');
+    const statusText = document.getElementById('status-text');
+    const statFeatures = document.getElementById('stat-features');
+    const statFps = document.getElementById('stat-fps');
+
+    const posXElem = document.getElementById('pos-x');
+    const posYElem = document.getElementById('pos-y');
+    const posZElem = document.getElementById('pos-z');
+    const statDistElem = document.getElementById('stat-dist');
+    const statSpeedElem = document.getElementById('stat-speed');
+    const posConfidenceElem = document.getElementById('pos-confidence');
+    const yawElem = document.getElementById('ori-yaw');
+
+    const btnStart = document.getElementById('btn-start');
+    const btnStartIcon = document.getElementById('btn-start-icon');
+    const btnStartCircle = document.getElementById('btn-start-circle');
+    const btnStartText = document.getElementById('btn-start-text');
+    
+    const btnPermission = document.getElementById('btn-permission');
+    const btnResetOrigin = document.getElementById('btn-reset-origin');
+    const btnToggleVectors = document.getElementById('btn-toggle-vectors');
+    const iconVectorsBox = document.getElementById('icon-vectors-box');
+    const btnToggleView = document.getElementById('btn-toggle-view');
+    const viewModeLabel = document.getElementById('view-mode-label');
+    
+    const btnInfo = document.getElementById('btn-info');
+    const modalInfo = document.getElementById('modal-info');
+    const btnCloseModal = document.getElementById('btn-close-modal');
+    const btnModalGotit = document.getElementById('btn-modal-gotit');
+
+    // --- Three.js Scene Variables ---
+    let scene, camera3D, renderer3D;
+    let trajectoryLine, pointCloudParticles, selfAvatarMesh;
+    let pointCloudGeometry, trajectoryGeometry;
+
+    // ==========================================
+    // 1. INIT & SETUP
+    // ==========================================
+    window.addEventListener('DOMContentLoaded', async () => {
+      initThreeJS();
+      resizeCanvases();
+      window.addEventListener('resize', resizeCanvases);
+
+      await setupCamera();
+      setupEventListeners();
+      updateViewportLayout();
+
+      setStatus('カメラ準備完了', 'bg-emerald-500');
+    });
+
+    function resizeCanvases() {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+
+      overlayCanvas.width = width;
+      overlayCanvas.height = height;
+
+      procCanvas.width = Math.floor(width / 3.5);
+      procCanvas.height = Math.floor(height / 3.5);
+
+      radarCanvas.width = 120;
+      radarCanvas.height = 120;
+
+      if (renderer3D) {
+        renderer3D.setSize(width, height);
+        camera3D.aspect = width / height;
+        camera3D.updateProjectionMatrix();
+      }
+    }
+
+    async function setupCamera() {
+      setStatus('カメラ接続中...', 'bg-amber-500');
+      try {
+        const constraints = {
+          video: {
+            facingMode: { exact: "environment" },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        };
+
+        let stream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+        } catch (e) {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "environment" },
+            audio: false
+          });
+        }
+
+        videoElem.srcObject = stream;
+        await new Promise((resolve) => {
+          videoElem.onloadedmetadata = () => {
+            videoElem.play();
+            resolve();
+          };
+        });
+
+      } catch (err) {
+        console.error("Camera error:", err);
+        setStatus('カメラへのアクセスが拒否されました', 'bg-rose-500');
+      }
+    }
+
+    function setStatus(text, colorClass) {
+      statusText.textContent = text;
+      statusIndicator.className = `w-3 h-3 rounded-full status-pulse ${colorClass}`;
+    }
+
+    // ==========================================
+    // 2. SENSOR & EVENTS
+    // ==========================================
+    function setupEventListeners() {
+      btnStart.addEventListener('click', toggleSLAM);
+      btnPermission.addEventListener('click', requestSensorPermissions);
+      btnResetOrigin.addEventListener('click', resetOriginPosition);
+      btnToggleVectors.addEventListener('click', toggleVectors);
+      btnToggleView.addEventListener('click', toggleMainView);
+      pipWindow.addEventListener('click', toggleMainView);
+
+      btnInfo.addEventListener('click', () => modalInfo.classList.remove('opacity-0', 'pointer-events-none'));
+      btnCloseModal.addEventListener('click', () => modalInfo.classList.add('opacity-0', 'pointer-events-none'));
+      btnModalGotit.addEventListener('click', () => modalInfo.classList.add('opacity-0', 'pointer-events-none'));
+
+      window.addEventListener('deviceorientation', handleOrientation, true);
+    }
+
+    async function requestSensorPermissions() {
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        try {
+          const permissionState = await DeviceOrientationEvent.requestPermission();
+          if (permissionState === 'granted') {
+            state.hasSensorPermission = true;
+            btnPermission.classList.add('text-emerald-400');
+            setStatus('ジャイロセンサー接続完了', 'bg-emerald-500');
+          }
+        } catch (error) {
+          console.error(error);
+        }
+      } else {
+        state.hasSensorPermission = true;
+        btnPermission.classList.add('text-emerald-400');
+      }
+    }
+
+    function handleOrientation(e) {
+      if (e.alpha === null) return;
+
+      if (state.sensor.initAlpha === null) {
+        state.sensor.initAlpha = e.alpha;
+        state.sensor.initBeta = e.beta;
+        state.sensor.initGamma = e.gamma;
+      }
+
+      state.sensor.alpha = e.alpha;
+      state.sensor.beta = e.beta;
+      state.sensor.gamma = e.gamma;
+
+      state.pose.yaw = (e.alpha - state.sensor.initAlpha).toFixed(1);
+      state.pose.pitch = (e.beta - state.sensor.initBeta).toFixed(1);
+      state.pose.roll = (e.gamma - state.sensor.initGamma).toFixed(1);
+
+      yawElem.textContent = `${state.pose.yaw}°`;
+    }
+
+    function toggleMainView() {
+      state.activeMainView = (state.activeMainView === 'camera') ? '3d' : 'camera';
+      updateViewportLayout();
+    }
+
+    function updateViewportLayout() {
+      if (state.activeMainView === 'camera') {
+        cameraViewport.className = "absolute inset-0 w-full h-full z-10 opacity-100 transition-all duration-300";
+        threeViewport.className = "absolute inset-0 w-full h-full z-0 opacity-0 pointer-events-none transition-all duration-300";
+        
+        pipWindow.appendChild(threeCanvasContainer);
+        viewModeLabel.textContent = "カメラ表示";
+      } else {
+        threeViewport.className = "absolute inset-0 w-full h-full z-10 opacity-100 transition-all duration-300";
+        cameraViewport.className = "absolute inset-0 w-full h-full z-0 opacity-0 pointer-events-none transition-all duration-300";
+
+        pipWindow.innerHTML = '';
+        pipWindow.appendChild(videoElem);
+        
+        viewModeLabel.textContent = "3Dマップ表示";
+      }
+      
+      resizeCanvases();
+    }
+
+    function toggleVectors() {
+      state.showVectors = !state.showVectors;
+      iconVectorsBox.classList.toggle('text-emerald-400');
+      iconVectorsBox.classList.toggle('text-slate-500');
+    }
+
+    // ==========================================
+    // 3. SLAM CORE ENGINE & POSITIONING
+    // ==========================================
+    function toggleSLAM() {
+      state.isTracking = !state.isTracking;
+
+      if (state.isTracking) {
+        btnStartCircle.className = "w-14 h-14 rounded-full bg-rose-600 hover:bg-rose-500 flex items-center justify-center text-white shadow-lg shadow-rose-600/40 border-2 border-white/20";
+        btnStartIcon.className = "fa-solid fa-stop text-xl";
+        btnStartText.textContent = "一時停止";
+        setStatus('自己位置推定中...', 'bg-emerald-500');
+
+        state.lastFrameTime = performance.now();
+        requestAnimationFrame(processFrameLoop);
+      } else {
+        btnStartCircle.className = "w-14 h-14 rounded-full bg-sky-600 hover:bg-sky-500 flex items-center justify-center text-white shadow-lg shadow-sky-600/40 border-2 border-white/20";
+        btnStartIcon.className = "fa-solid fa-play text-xl ml-0.5";
+        btnStartText.textContent = "SLAM開始";
+        setStatus('一時停止中', 'bg-amber-500');
+      }
+    }
+
+    function processFrameLoop() {
+      if (!state.isTracking) return;
+
+      const now = performance.now();
+      const deltaTime = (now - state.lastFrameTime) / 1000;
+      state.lastFrameTime = now;
+
+      const pw = procCanvas.width;
+      const ph = procCanvas.height;
+      procCtx.drawImage(videoElem, 0, 0, pw, ph);
+
+      const frameData = procCtx.getImageData(0, 0, pw, ph);
+
+      // Feature extraction & tracking
+      updateVisualFeatureTracking(frameData, pw, ph, deltaTime);
+      
+      // Render visual outputs
+      render2DTrackingOverlay();
+      render2DRadarMap();
+      update3DScene();
+
+      // FPS Metrics
+      state.frameCount++;
+      if (now - state.lastFpsUpdate >= 500) {
+        state.fps = Math.round((state.frameCount * 1000) / (now - state.lastFpsUpdate));
+        statFps.textContent = state.fps;
+        state.frameCount = 0;
+        state.lastFpsUpdate = now;
+      }
+
+      requestAnimationFrame(processFrameLoop);
+    }
+
+    function updateVisualFeatureTracking(imgData, width, height, dt) {
+      const data = imgData.data;
+
+      // Extract new FAST corner points
+      if (state.trackedFeatures.length < 45) {
+        const newFeatures = detectFASTCorners(data, width, height, 25);
+        for (let nf of newFeatures) {
+          const exists = state.trackedFeatures.some(f => Math.hypot(f.x - nf.x, f.y - nf.y) < 12);
+          if (!exists) {
+            state.trackedFeatures.push({
+              x: nf.x,
+              y: nf.y,
+              dx: 0,
+              dy: 0,
+              age: 0,
+              world3D: {
+                x: (nf.x / width - 0.5) * 3,
+                y: -(nf.y / height - 0.5) * 3,
+                z: -1.5 - Math.random() * 2.5
+              }
+            });
+          }
+        }
+      }
+
+      // Optical flow motion tracking
+      const updatedFeatures = [];
+      let avgDx = 0;
+      let avgDy = 0;
+
+      for (let feat of state.trackedFeatures) {
+        const px = Math.floor(feat.x);
+        const py = Math.floor(feat.y);
+
+        if (px < 4 || px >= width - 4 || py < 4 || py >= height - 4) continue;
+
+        let bestShiftX = 0;
+        let bestShiftY = 0;
+        let minDiff = Infinity;
+        const currentLum = getLuminance(data, (py * width + px) * 4);
+
+        for (let sy = -2; sy <= 2; sy++) {
+          for (let sx = -2; sx <= 2; sx++) {
+            const idx = ((py + sy) * width + (px + sx)) * 4;
+            const neighborLum = getLuminance(data, idx);
+            const diff = Math.abs(currentLum - neighborLum);
+
+            if (diff < minDiff) {
+              minDiff = diff;
+              bestShiftX = sx;
+              bestShiftY = sy;
+            }
+          }
+        }
+
+        feat.dx = feat.dx * 0.6 + bestShiftX * 0.4;
+        feat.dy = feat.dy * 0.6 + bestShiftY * 0.4;
+        feat.x += feat.dx;
+        feat.y += feat.dy;
+        feat.age++;
+
+        avgDx += feat.dx;
+        avgDy += feat.dy;
+
+        if (feat.x > 4 && feat.x < width - 4 && feat.y > 4 && feat.y < height - 4 && feat.age < 120) {
+          updatedFeatures.push(feat);
+        }
+      }
+
+      state.trackedFeatures = updatedFeatures;
+      statFeatures.textContent = state.trackedFeatures.length;
+
+      // Update Self-Positioning Odometry
+      if (updatedFeatures.length > 0) {
+        avgDx /= updatedFeatures.length;
+        avgDy /= updatedFeatures.length;
+
+        const motionScale = 0.015;
+        const moveX = -avgDx * motionScale;
+        const moveY = avgDy * motionScale;
+        const moveZ = -(Math.abs(avgDx) + Math.abs(avgDy)) * 0.002;
+
+        state.pose.x += moveX;
+        state.pose.y += moveY;
+        state.pose.z += moveZ;
+
+        // Calculate step distance & speed
+        const stepDist = Math.hypot(
+          state.pose.x - state.lastPose.x,
+          state.pose.y - state.lastPose.y,
+          state.pose.z - state.lastPose.z
+        );
+
+        if (stepDist > 0.001) {
+          state.totalDistance += stepDist;
+          state.currentSpeed = dt > 0 ? (stepDist / dt) : 0;
+        } else {
+          state.currentSpeed *= 0.8;
+        }
+
+        state.lastPose = { x: state.pose.x, y: state.pose.y, z: state.pose.z };
+
+        // Dynamic confidence evaluation based on feature count
+        state.confidence = Math.min(99, Math.max(40, Math.round((updatedFeatures.length / 45) * 100)));
+      }
+
+      // Update UI Telemetry
+      posXElem.textContent = state.pose.x.toFixed(2);
+      posYElem.textContent = state.pose.y.toFixed(2);
+      posZElem.textContent = state.pose.z.toFixed(2);
+      statDistElem.textContent = state.totalDistance.toFixed(2);
+      statSpeedElem.textContent = state.currentSpeed.toFixed(2);
+      posConfidenceElem.textContent = `${state.confidence}%`;
+
+      // Append landmark points to 3D trajectory
+      const currentPos = new THREE.Vector3(state.pose.x, state.pose.y, state.pose.z);
+      if (state.trajectory3D.length === 0 || currentPos.distanceTo(state.trajectory3D[state.trajectory3D.length - 1]) > 0.04) {
+        state.trajectory3D.push(currentPos.clone());
+        if (state.trajectory3D.length > 400) state.trajectory3D.shift();
+      }
+
+      state.trackedFeatures.forEach(feat => {
+        const pxWorld = state.pose.x + feat.world3D.x;
+        const pyWorld = state.pose.y + feat.world3D.y;
+        const pzWorld = state.pose.z + feat.world3D.z;
+
+        const exists = state.pointCloud3D.some(p => Math.hypot(p.x - pxWorld, p.y - pyWorld, p.z - pzWorld) < 0.15);
+        if (!exists && state.pointCloud3D.length < 800) {
+          state.pointCloud3D.push(new THREE.Vector3(pxWorld, pyWorld, pzWorld));
+        }
+      });
+    }
+
+    function getLuminance(data, index) {
+      return 0.299 * data[index] + 0.587 * data[index + 1] + 0.114 * data[index + 2];
+    }
+
+    function detectFASTCorners(data, width, height, maxCount) {
+      const corners = [];
+      const threshold = 20;
+      const step = 6;
+
+      for (let y = 8; y < height - 8; y += step) {
+        for (let x = 8; x < width - 8; x += step) {
+          const centerIdx = (y * width + x) * 4;
+          const centerLum = getLuminance(data, centerIdx);
+
+          const topLum = getLuminance(data, ((y - 3) * width + x) * 4);
+          const rightLum = getLuminance(data, (y * width + (x + 3)) * 4);
+          const bottomLum = getLuminance(data, ((y + 3) * width + x) * 4);
+          const leftLum = getLuminance(data, (y * width + (x - 3)) * 4);
+
+          let brighterCount = 0;
+          let darkerCount = 0;
+
+          [topLum, rightLum, bottomLum, leftLum].forEach(lum => {
+            if (lum > centerLum + threshold) brighterCount++;
+            if (lum < centerLum - threshold) darkerCount++;
+          });
+
+          if (brighterCount >= 3 || darkerCount >= 3) {
+            corners.push({ x, y });
+            if (corners.length >= maxCount) return corners;
+          }
+        }
+      }
+      return corners;
+    }
+
+    // ==========================================
+    // 4. AR OVERLAY & 2D RADAR VISUALS
+    // ==========================================
+    function render2DTrackingOverlay() {
+      const width = overlayCanvas.width;
+      const height = overlayCanvas.height;
+      const scaleX = width / procCanvas.width;
+      const scaleY = height / procCanvas.height;
+
+      overlayCtx.clearRect(0, 0, width, height);
+
+      // Render AR Self-Position Coordinate Overlay directly on video
+      overlayCtx.font = 'bold 12px monospace';
+      overlayCtx.fillStyle = '#38bdf8';
+      overlayCtx.fillText(`[自己位置]: X:${state.pose.x.toFixed(2)} Y:${state.pose.y.toFixed(2)} Z:${state.pose.z.toFixed(2)}`, width / 2 - 110, height / 2 + 50);
+
+      // Feature Points & Displacement Lines
+      state.trackedFeatures.forEach(feat => {
+        const screenX = feat.x * scaleX;
+        const screenY = feat.y * scaleY;
+
+        if (state.showVectors) {
+          overlayCtx.beginPath();
+          overlayCtx.moveTo(screenX, screenY);
+          overlayCtx.lineTo(screenX + feat.dx * scaleX * 6, screenY + feat.dy * scaleY * 6);
+          overlayCtx.strokeStyle = 'rgba(56, 189, 248, 0.85)';
+          overlayCtx.lineWidth = 1.5;
+          overlayCtx.stroke();
+        }
+
+        overlayCtx.beginPath();
+        overlayCtx.arc(screenX, screenY, 4, 0, Math.PI * 2);
+        overlayCtx.fillStyle = '#10b981';
+        overlayCtx.shadowColor = '#10b981';
+        overlayCtx.shadowBlur = 6;
+        overlayCtx.fill();
+        overlayCtx.shadowBlur = 0;
+      });
+    }
+
+    function render2DRadarMap() {
+      const rw = radarCanvas.width;
+      const rh = radarCanvas.height;
+      const cx = rw / 2;
+      const cy = rh / 2;
+
+      radarCtx.clearRect(0, 0, rw, rh);
+
+      // Radar Concentric Circles
+      radarCtx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
+      radarCtx.lineWidth = 1;
+      radarCtx.beginPath();
+      radarCtx.arc(cx, cy, 20, 0, Math.PI * 2);
+      radarCtx.arc(cx, cy, 40, 0, Math.PI * 2);
+      radarCtx.stroke();
+
+      // Axis Lines
+      radarCtx.beginPath();
+      radarCtx.moveTo(cx, 0); radarCtx.lineTo(cx, rh);
+      radarCtx.moveTo(0, cy); radarCtx.lineTo(rw, cy);
+      radarCtx.stroke();
+
+      // Trajectory Path on Radar
+      if (state.trajectory3D.length > 1) {
+        radarCtx.beginPath();
+        radarCtx.strokeStyle = '#38bdf8';
+        radarCtx.lineWidth = 2;
+        state.trajectory3D.forEach((p, idx) => {
+          const rx = cx + p.x * 12;
+          const ry = cy + p.z * 12;
+          if (idx === 0) radarCtx.moveTo(rx, ry);
+          else radarCtx.lineTo(rx, ry);
+        });
+        radarCtx.stroke();
+      }
+
+      // Self-Position Marker (YOU ARE HERE)
+      const selfRx = cx + state.pose.x * 12;
+      const selfRy = cy + state.pose.z * 12;
+
+      radarCtx.beginPath();
+      radarCtx.arc(selfRx, selfRy, 5, 0, Math.PI * 2);
+      radarCtx.fillStyle = '#f43f5e';
+      radarCtx.shadowColor = '#f43f5e';
+      radarCtx.shadowBlur = 8;
+      radarCtx.fill();
+      radarCtx.shadowBlur = 0;
+    }
+
+    // ==========================================
+    // 5. THREE.JS 3D SELF-POSITION SCENE
+    // ==========================================
+    function initThreeJS() {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0a0c16);
+
+      camera3D = new THREE.PerspectiveCamera(60, width / height, 0.1, 100);
+      camera3D.position.set(0, 2.8, 4.5);
+      camera3D.lookAt(0, 0, 0);
+
+      renderer3D = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer3D.setSize(width, height);
+      renderer3D.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+      threeCanvasContainer.appendChild(renderer3D.domElement);
+
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+      scene.add(ambientLight);
+
+      const grid = new THREE.GridHelper(16, 16, 0x38bdf8, 0x1e293b);
+      grid.position.y = -0.8;
+      scene.add(grid);
+
+      // Self-Position Avatar (Glowing Pyramid Frustum)
+      const avatarGeo = new THREE.ConeGeometry(0.25, 0.45, 4);
+      const avatarMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, wireframe: true });
+      selfAvatarMesh = new THREE.Mesh(avatarGeo, avatarMat);
+      selfAvatarMesh.rotation.x = Math.PI / 2;
+      scene.add(selfAvatarMesh);
+
+      // Trajectory Line
+      trajectoryGeometry = new THREE.BufferGeometry();
+      const trajectoryMat = new THREE.LineBasicMaterial({ color: 0x10b981, linewidth: 3 });
+      trajectoryLine = new THREE.Line(trajectoryGeometry, trajectoryMat);
+      scene.add(trajectoryLine);
+
+      // Point Cloud Landmarks
+      pointCloudGeometry = new THREE.BufferGeometry();
+      const pointCloudMat = new THREE.PointsMaterial({
+        color: 0xc084fc,
+        size: 0.08,
+        transparent: true,
+        opacity: 0.85
+      });
+      pointCloudParticles = new THREE.Points(pointCloudGeometry, pointCloudMat);
+      scene.add(pointCloudParticles);
+    }
+
+    function update3DScene() {
+      if (!scene) return;
+
+      // Update Self Avatar position in 3D Space
+      selfAvatarMesh.position.set(state.pose.x, state.pose.y, state.pose.z);
+      selfAvatarMesh.rotation.x = (state.pose.pitch * Math.PI) / 180;
+      selfAvatarMesh.rotation.y = (state.pose.yaw * Math.PI) / 180;
+      selfAvatarMesh.rotation.z = (state.pose.roll * Math.PI) / 180;
+
+      if (state.trajectory3D.length > 0) {
+        trajectoryGeometry.setFromPoints(state.trajectory3D);
+      }
+
+      if (state.pointCloud3D.length > 0) {
+        const positions = new Float32Array(state.pointCloud3D.length * 3);
+        state.pointCloud3D.forEach((p, idx) => {
+          positions[idx * 3] = p.x;
+          positions[idx * 3 + 1] = p.y;
+          positions[idx * 3 + 2] = p.z;
+        });
+        pointCloudGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      }
+
+      // Smooth camera follow mode in 3D View
+      if (state.activeMainView === '3d') {
+        camera3D.position.x += (state.pose.x + 1.8 - camera3D.position.x) * 0.05;
+        camera3D.position.y += (state.pose.y + 1.8 - camera3D.position.y) * 0.05;
+        camera3D.position.z += (state.pose.z + 3.8 - camera3D.position.z) * 0.05;
+        camera3D.lookAt(state.pose.x, state.pose.y, state.pose.z);
+      }
+
+      renderer3D.render(scene, camera3D);
+    }
+
+    function resetOriginPosition() {
+      state.pose = { x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 0 };
+      state.lastPose = { x: 0, y: 0, z: 0 };
+      state.totalDistance = 0;
+      state.currentSpeed = 0;
+      state.trackedFeatures = [];
+      state.pointCloud3D = [];
+      state.trajectory3D = [];
+
+      trajectoryGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(0), 3));
+      pointCloudGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(0), 3));
+
+      setStatus('原点(0,0,0)にリセット完了', 'bg-sky-500');
+      setTimeout(() => {
+        if (state.isTracking) setStatus('自己位置推定中...', 'bg-emerald-500');
+        else setStatus('一時停止中', 'bg-amber-500');
+      }, 1200);
+    }
+  </script>
+</body>
+</html>

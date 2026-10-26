@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>iPhone Visual SLAM - VIO & High-Contrast Feature Tracker</title>
+  <title>iPhone Visual SLAM - RGB Colored Point Cloud & VIO</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Three.js for 3D Spatial Visualization -->
@@ -85,7 +85,7 @@
     <div class="flex items-center space-x-2.5">
       <div id="status-indicator" class="w-3 h-3 rounded-full bg-amber-500 status-pulse"></div>
       <div>
-        <h1 class="text-[10px] font-bold tracking-widest uppercase text-sky-400">Visual SLAM Engine v2.0</h1>
+        <h1 class="text-[10px] font-bold tracking-widest uppercase text-sky-400">Visual SLAM Engine v2.5</h1>
         <div id="status-text" class="text-xs font-bold text-slate-100 flex items-center gap-1.5">
           カメラ初期化中...
         </div>
@@ -134,6 +134,9 @@
         <span class="px-2.5 py-1 rounded-full text-[10px] font-mono bg-black/75 backdrop-blur-md border border-sky-400/30 text-sky-300 w-max flex items-center gap-1.5 shadow-lg">
           <i class="fa-solid fa-gauge-high text-[9px]"></i> FPS: <span id="stat-fps" class="font-bold text-white">0</span>
         </span>
+        <span class="px-2.5 py-1 rounded-full text-[10px] font-mono bg-black/75 backdrop-blur-md border border-purple-400/30 text-purple-300 w-max flex items-center gap-1.5 shadow-lg">
+          <i class="fa-solid fa-palette text-[9px]"></i> 実写カラー点群: <span id="stat-pts-count" class="font-bold text-white">0</span>
+        </span>
         <span id="stat-de-rot-badge" class="px-2 py-0.5 rounded text-[9px] font-mono bg-emerald-950/80 border border-emerald-400/30 text-emerald-300 w-max">
           <i class="fa-solid fa-rotate text-[8px]"></i> 回転相殺フィルター稼働中
         </span>
@@ -153,10 +156,10 @@
 
       <div class="absolute top-24 left-4 z-20 pointer-events-none flex flex-col space-y-1.5">
         <span class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-purple-950/80 border border-purple-400/40 text-purple-200 backdrop-blur-md flex items-center gap-1.5 shadow-lg">
-          <i class="fa-solid fa-cubes-stacked"></i> 3D空間再構成 (ランドマーク & 錐台)
+          <i class="fa-solid fa-cubes-stacked"></i> 3D空間 (実写RGB点群 & 錐台)
         </span>
         <span class="text-[9px] text-slate-300 bg-black/70 px-2 py-0.5 rounded-md backdrop-blur-sm border border-white/10">
-          <i class="fa-solid fa-arrows-spin text-sky-400"></i> スワイプで360度回転 / ピンチ拡大縮小
+          <i class="fa-solid fa-arrows-spin text-sky-400"></i> スワイプで360度回転 / ドラッグ移動
         </span>
       </div>
     </div>
@@ -244,8 +247,8 @@
             <div id="stat-env-y" class="text-emerald-300 font-bold text-xs">0.00 m</div>
           </div>
           <div class="glass-card p-2 rounded-xl">
-            <span class="text-slate-400">キーフレーム写真:</span>
-            <div id="stat-keyframes" class="text-amber-300 font-bold text-xs">0 枚</div>
+            <span class="text-slate-400">実写点群数:</span>
+            <div id="stat-summary-pts" class="text-cyan-300 font-bold text-xs">0 点</div>
           </div>
         </div>
 
@@ -347,14 +350,6 @@
       <span class="text-[9px] font-medium">ジャイロ</span>
     </button>
 
-    <!-- Keyframe Photo Snap -->
-    <button id="btn-snap-keyframe" class="flex flex-col items-center justify-center text-slate-300 hover:text-white active:scale-95 transition">
-      <div class="w-9 h-9 rounded-full glass-button flex items-center justify-center mb-1 text-sky-400">
-        <i class="fa-solid fa-camera-retro"></i>
-      </div>
-      <span class="text-[9px] font-medium">画像記録</span>
-    </button>
-
     <!-- SLAM Play/Pause -->
     <button id="btn-start" class="flex flex-col items-center justify-center active:scale-95 transition">
       <div id="btn-start-circle" class="w-12 h-12 rounded-full bg-sky-600 hover:bg-sky-500 flex items-center justify-center text-white shadow-lg shadow-sky-600/40 border-2 border-white/20">
@@ -377,7 +372,7 @@
     <div class="glass-panel w-full max-w-md max-h-[82vh] rounded-3xl p-6 overflow-y-auto space-y-4 border border-white/15 shadow-2xl">
       <div class="flex justify-between items-center pb-2 border-b border-white/10">
         <h2 class="text-base font-bold text-white flex items-center gap-2">
-          <i class="fa-solid fa-circle-nodes text-cyan-400"></i> 改良型アルゴリズムの仕組み
+          <i class="fa-solid fa-palette text-cyan-400"></i> 実写カラー点群 & SLAM機能
         </h2>
         <button id="btn-close-modal" class="p-2 text-slate-400 hover:text-white">
           <i class="fa-solid fa-xmark text-xl"></i>
@@ -386,18 +381,18 @@
 
       <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
         <div class="p-3 glass-card rounded-2xl border border-cyan-500/20">
-          <h3 class="font-semibold text-cyan-300 text-sm mb-1">1. 回転と並進の完全分離 (De-rotation)</h3>
-          <p>首振り・パン動作時にジャイロから計算される回転ベクトル分をオプティカルフローから減算。向きを変えただけでは位置が動かないようドリフトを抑制します。</p>
+          <h3 class="font-semibold text-cyan-300 text-sm mb-1">1. カメラ実写色テクスチャ点群 (RGB Point Cloud)</h3>
+          <p>検出された角（端点）のカメラ画像上のピクセル色（RGB）を抽出し、3D空間上の点群にそのまま反映。実際の被写体の色味を持った立体点群が形成されます。</p>
         </div>
 
         <div class="p-3 glass-card rounded-2xl border border-emerald-500/20">
-          <h3 class="font-semibold text-emerald-300 text-sm mb-1">2. 高コントラスト端点の厳選抽出 (Grid-NMS)</h3>
-          <p>テクスチャの薄い壁やノイズを無視し、画面の各区画（グリッド）ごとに最も鮮明な端点（Shi-Tomasiコーナースコア上位）のみを1点ずつ選定します。</p>
+          <h3 class="font-semibold text-emerald-300 text-sm mb-1">2. 回転相殺 (De-rotation)</h3>
+          <p>首振り・パン動作時にジャイロから計算される回転ベクトル分をオプティカルフローから減算。向きを変えただけでは位置が動かないようドリフトを抑制します。</p>
         </div>
 
         <div class="p-3 glass-card rounded-2xl border border-purple-500/20">
           <h3 class="font-semibold text-purple-300 text-sm mb-1">3. 3D空間再構成</h3>
-          <p>スマホの立体アバター、視界錐台（Frustum）、3D点群（Point Cloud）、立体リボン軌跡、撮影スナップショット写真を3次元表示します。</p>
+          <p>スマホの立体アバター、視界錐台（Frustum）、立体リボン軌跡、床への垂線（ドロップライン）で自己位置と向きを直感的に把握できます。</p>
         </div>
       </div>
 
@@ -411,7 +406,7 @@
 
   <script>
     /**
-     * iPhone Visual-Inertial Odometry & High-Contrast SLAM Engine
+     * iPhone Visual-Inertial Odometry & RGB Colored Point Cloud SLAM Engine
      */
 
     const state = {
@@ -447,12 +442,11 @@
         dAlpha: 0, dBeta: 0, dGamma: 0
       },
 
-      // SLAM Feature & Landmark Store
+      // SLAM Feature & Landmark Store (Positions + Sampled RGB Colors)
       trackedFeatures: [],
       newlyDetectedFeatures: [],
-      pointCloud3D: [],
-      trajectory3D: [],
-      keyframeSnapshots: []
+      pointCloud3D: [],     // Array of { x, y, z, r, g, b }
+      trajectory3D: []
     };
 
     // --- DOM Elements ---
@@ -478,6 +472,8 @@
     const statusText = document.getElementById('status-text');
     const statFeatures = document.getElementById('stat-features');
     const statFps = document.getElementById('stat-fps');
+    const statPtsCount = document.getElementById('stat-pts-count');
+    const statSummaryPts = document.getElementById('stat-summary-pts');
 
     const posXElem = document.getElementById('pos-x');
     const posYElem = document.getElementById('pos-y');
@@ -497,7 +493,6 @@
     const btnCamRetry = document.getElementById('btn-cam-retry');
     const btnPermission = document.getElementById('btn-permission');
     const iconGyroBox = document.getElementById('icon-gyro-box');
-    const btnSnapKeyframe = document.getElementById('btn-snap-keyframe');
     const btnResetOrigin = document.getElementById('btn-reset-origin');
     const btnToggleVectors = document.getElementById('btn-toggle-vectors');
     const iconVectorsBox = document.getElementById('icon-vectors-box');
@@ -525,7 +520,6 @@
     const statEnvX = document.getElementById('stat-env-x');
     const statEnvZ = document.getElementById('stat-env-z');
     const statEnvY = document.getElementById('stat-env-y');
-    const statKeyframes = document.getElementById('stat-keyframes');
 
     const sliderTrailLength = document.getElementById('slider-trail-length');
     const labelTrailLength = document.getElementById('label-trail-length');
@@ -537,14 +531,13 @@
 
     // --- Three.js Spatial Objects ---
     let scene, camera3D, renderer3D;
-    let trajectoryMeshGroup, pillarsGroup, keyframeBillboardsGroup;
+    let trajectoryMeshGroup, pillarsGroup;
     let startMarkerMesh, currentMarkerMesh;
     let pointCloudParticles, pointCloudGeometry;
     let cameraAvatarGroup;
 
     let is3DTouchDragging = false, previousTouchX = 0, previousTouchY = 0;
     let orbitAzimuth = 0, orbitElevation = 0.5, orbitDistance = 5.0;
-    let lastKeyframeDistance = 0;
 
     // ==========================================
     // 1. INITIALIZATION & LIFECYCLE
@@ -639,7 +632,6 @@
       btnStart.addEventListener('click', toggleSLAM);
       btnCamRetry.addEventListener('click', () => { ensureVideoPlaying(); setupCamera(); });
       btnPermission.addEventListener('click', requestSensorPermissions);
-      btnSnapKeyframe.addEventListener('click', () => captureKeyframeSnapshot(true));
       btnResetOrigin.addEventListener('click', resetOriginPosition);
       btnToggleVectors.addEventListener('click', toggleVectors);
       btnToggleView.addEventListener('click', toggleMainView);
@@ -768,7 +760,6 @@
       let dBeta = e.beta - state.sensor.lastBeta;
       let dGamma = e.gamma - state.sensor.lastGamma;
 
-      // Wrap-around handling (-180 to 180)
       if (dAlpha > 180) dAlpha -= 360;
       if (dAlpha < -180) dAlpha += 360;
 
@@ -834,7 +825,7 @@
     }
 
     // ==========================================
-    // 3. CORE VIO SLAM & CORNER EXTRACTION
+    // 3. CORE VIO SLAM & SHARP CORNER EXTRACTION
     // ==========================================
     function toggleSLAM() {
       ensureVideoPlaying();
@@ -844,7 +835,7 @@
         btnStartCircle.className = "w-12 h-12 rounded-full bg-rose-600 hover:bg-rose-500 flex items-center justify-center text-white shadow-lg shadow-rose-600/40 border-2 border-white/20";
         btnStartIcon.className = "fa-solid fa-stop text-lg";
         btnStartText.textContent = "停止";
-        setStatus('自己位置推定中 (De-rotation稼働)', 'bg-emerald-500');
+        setStatus('自己位置推定中 (実写RGB点群生成)', 'bg-emerald-500');
 
         state.lastFrameTime = performance.now();
         requestAnimationFrame(processFrameLoop);
@@ -891,7 +882,7 @@
 
     /**
      * SHI-TOMASI / HARRIS CORNER QUALITY DETECTOR + GRID-NMS
-     * Filters for genuine, sharp corner endpoints and avoids flat surfaces.
+     * Samples exact RGB pixel color alongside corner coordinates.
      */
     function extractSharpCornerEndpoints(data, width, height, maxTotal = 45) {
       const corners = [];
@@ -900,7 +891,6 @@
       const cellW = Math.floor(width / gridCols);
       const cellH = Math.floor(height / gridRows);
 
-      // Evaluate each grid cell to find the single best corner (Grid NMS)
       for (let r = 0; r < gridRows; r++) {
         for (let c = 0; c < gridCols; c++) {
           let bestScore = -Infinity;
@@ -916,13 +906,12 @@
               const centerIdx = (y * width + x) * 4;
               const centerLum = getLuminance(data, centerIdx);
 
-              // 1. FAST-like contrast check: Check 4 compass points
               const topLum = getLuminance(data, ((y - 3) * width + x) * 4);
               const rightLum = getLuminance(data, (y * width + (x + 3)) * 4);
               const btmLum = getLuminance(data, ((y + 3) * width + x) * 4);
               const leftLum = getLuminance(data, (y * width + (x - 3)) * 4);
 
-              const contrastThreshold = 28; // Strict threshold for high-contrast edges
+              const contrastThreshold = 28;
               let bright = 0, dark = 0;
               [topLum, rightLum, btmLum, leftLum].forEach(l => {
                 if (l > centerLum + contrastThreshold) bright++;
@@ -931,7 +920,7 @@
 
               if (bright < 2 && dark < 2) continue;
 
-              // 2. Compute 3x3 Structure Tensor for Shi-Tomasi Corner Score
+              // Compute 3x3 Structure Tensor for Shi-Tomasi Corner Score
               let Ixx = 0, Iyy = 0, Ixy = 0;
               for (let dy = -1; dy <= 1; dy++) {
                 for (let dx = -1; dx <= 1; dx++) {
@@ -949,16 +938,21 @@
                 }
               }
 
-              // Shi-Tomasi score: min eigenvalue of structure tensor
-              // lambda_min = ((Ixx + Iyy) - sqrt((Ixx - Iyy)^2 + 4 * Ixy^2)) / 2
               const trace = Ixx + Iyy;
               const detTerm = Math.sqrt(Math.max(0, (Ixx - Iyy) * (Ixx - Iyy) + 4 * Ixy * Ixy));
               const lambdaMin = (trace - detTerm) * 0.5;
 
-              // Corner must have a strong minimum eigenvalue to be a genuine 2D corner endpoint
               if (lambdaMin > 180 && lambdaMin > bestScore) {
                 bestScore = lambdaMin;
-                bestPt = { x, y, score: lambdaMin };
+                // Sample original camera RGB values
+                bestPt = { 
+                  x, 
+                  y, 
+                  score: lambdaMin,
+                  r: data[centerIdx] / 255.0,
+                  g: data[centerIdx + 1] / 255.0,
+                  b: data[centerIdx + 2] / 255.0
+                };
               }
             }
           }
@@ -973,7 +967,7 @@
     }
 
     /**
-     * VISUAL-INERTIAL ODOMETRY WITH DE-ROTATION
+     * VISUAL-INERTIAL ODOMETRY WITH DE-ROTATION & CAMERA RGB EXTRACTION
      */
     function updateVisualInertialOdometry(imgData, width, height, dt) {
       const data = imgData.data;
@@ -1002,6 +996,7 @@
               residualX: 0,
               residualY: 0,
               age: 0,
+              color: { r: corner.r, g: corner.g, b: corner.b },
               world3D: { x: worldX, y: worldY, z: worldZ }
             };
 
@@ -1015,13 +1010,10 @@
       const updatedFeatures = [];
       const residualTranslations = [];
 
-      // Compute expected visual flow caused purely by angular camera rotation (De-rotation Model)
-      // focal_pixel: Approximate focal length in pixels for 240px wide canvas (~220px)
       const focalPixel = 220.0;
       const rotRadYaw = (state.sensor.dAlpha * Math.PI) / 180.0;
       const rotRadPitch = (state.sensor.dBeta * Math.PI) / 180.0;
 
-      // Predicted pixel shift due to pure rotation
       const expectedDxRot = -rotRadYaw * focalPixel;
       const expectedDyRot = rotRadPitch * focalPixel;
 
@@ -1036,7 +1028,6 @@
         let minDiff = Infinity;
         const currentLum = getLuminance(data, (py * width + px) * 4);
 
-        // Search in a 5x5 window
         for (let sy = -2; sy <= 2; sy++) {
           for (let sx = -2; sx <= 2; sx++) {
             const idx = ((py + sy) * width + (px + sx)) * 4;
@@ -1051,14 +1042,22 @@
           }
         }
 
-        // Low-pass filtered flow
         feat.dx = feat.dx * 0.5 + bestShiftX * 0.5;
         feat.dy = feat.dy * 0.5 + bestShiftY * 0.5;
         feat.x += feat.dx;
         feat.y += feat.dy;
         feat.age++;
 
-        // DE-ROTATION: Subtract rotational pixel movement from measured flow
+        // Keep color refreshed from the latest frame pixel
+        const curPx = Math.min(width - 1, Math.max(0, Math.floor(feat.x)));
+        const curPy = Math.min(height - 1, Math.max(0, Math.floor(feat.y)));
+        const curIdx = (curPy * width + curPx) * 4;
+        feat.color = {
+          r: data[curIdx] / 255.0,
+          g: data[curIdx + 1] / 255.0,
+          b: data[curIdx + 2] / 255.0
+        };
+
         const residualX = feat.dx - expectedDxRot;
         const residualY = feat.dy - expectedDyRot;
 
@@ -1084,11 +1083,10 @@
         let medianResidualX = sortedRx[midIdx];
         let medianResidualY = sortedRy[midIdx];
 
-        // Deadband filter: Discard minute noise/jitters under 0.25 pixels
         if (Math.abs(medianResidualX) < 0.25) medianResidualX = 0;
         if (Math.abs(medianResidualY) < 0.25) medianResidualY = 0;
 
-        const translationScale = 0.012; // Meters per residual pixel
+        const translationScale = 0.012;
         const deltaTransX = -medianResidualX * translationScale;
         const deltaTransY = medianResidualY * translationScale;
         const deltaTransZ = -(Math.abs(medianResidualX) + Math.abs(medianResidualY)) * 0.001;
@@ -1113,7 +1111,6 @@
         state.lastPose = { x: state.pose.x, y: state.pose.y, z: state.pose.z };
       }
 
-      // Reset delta orientation pulses
       state.sensor.dAlpha = 0;
       state.sensor.dBeta = 0;
       state.sensor.dGamma = 0;
@@ -1141,61 +1138,25 @@
         state.trajectory3D.push(currentPosNode);
       }
 
-      // Record 3D Point Cloud Landmarks
+      // Record 3D Point Cloud Landmarks WITH EXACT CAMERA RGB COLORS
       state.trackedFeatures.forEach(feat => {
-        const pt = new THREE.Vector3(feat.world3D.x, feat.world3D.y, feat.world3D.z);
-        const exists = state.pointCloud3D.some(p => p.distanceTo(pt) < 0.14);
-        if (!exists && state.pointCloud3D.length < 1200) {
+        const pt = {
+          x: feat.world3D.x,
+          y: feat.world3D.y,
+          z: feat.world3D.z,
+          r: feat.color.r,
+          g: feat.color.g,
+          b: feat.color.b
+        };
+
+        const exists = state.pointCloud3D.some(p => Math.hypot(p.x - pt.x, p.y - pt.y, p.z - pt.z) < 0.14);
+        if (!exists && state.pointCloud3D.length < 2500) {
           state.pointCloud3D.push(pt);
         }
       });
 
-      // Auto Keyframe Snapshot every 0.8m traveled
-      if (state.totalDistance - lastKeyframeDistance > 0.8) {
-        lastKeyframeDistance = state.totalDistance;
-        captureKeyframeSnapshot(false);
-      }
-    }
-
-    function captureKeyframeSnapshot(manual = false) {
-      if (!videoElem || videoElem.readyState < 2) return;
-
-      const snapCanvas = document.createElement('canvas');
-      snapCanvas.width = 160;
-      snapCanvas.height = 120;
-      const sCtx = snapCanvas.getContext('2d');
-      sCtx.drawImage(videoElem, 0, 0, 160, 120);
-
-      const texture = new THREE.CanvasTexture(snapCanvas);
-      
-      const planeGeo = new THREE.PlaneGeometry(0.48, 0.36);
-      const planeMat = new THREE.MeshBasicMaterial({
-        map: texture,
-        side: THREE.DoubleSide,
-        transparent: true,
-        opacity: 0.9
-      });
-      const billboardMesh = new THREE.Mesh(planeGeo, planeMat);
-
-      const angleRad = (state.pose.yaw * Math.PI) / 180;
-      billboardMesh.position.set(
-        state.pose.x - Math.sin(angleRad) * 0.25,
-        state.pose.y + 0.1,
-        state.pose.z + Math.cos(angleRad) * 0.25
-      );
-      billboardMesh.rotation.y = angleRad;
-
-      keyframeBillboardsGroup.add(billboardMesh);
-      state.keyframeSnapshots.push({ mesh: billboardMesh, pose: { ...state.pose } });
-
-      statKeyframes.textContent = `${state.keyframeSnapshots.length} 枚`;
-
-      if (manual) {
-        setStatus('画像を3D空間にピン留めしました', 'bg-purple-500');
-        setTimeout(() => {
-          if (state.isTracking) setStatus('自己位置推定中 (De-rotation稼働)', 'bg-emerald-500');
-        }, 1200);
-      }
+      statPtsCount.textContent = state.pointCloud3D.length;
+      statSummaryPts.textContent = `${state.pointCloud3D.length} 点`;
     }
 
     function getLuminance(data, index) {
@@ -1228,10 +1189,14 @@
         overlayCtx.lineWidth = 2.0;
         overlayCtx.stroke();
 
-        // Cyan Corner Endpoint
+        // Exact Camera Color Swatch with border for corner endpoint
+        const r255 = Math.round(feat.color.r * 255);
+        const g255 = Math.round(feat.color.g * 255);
+        const b255 = Math.round(feat.color.b * 255);
+
         overlayCtx.beginPath();
-        overlayCtx.arc(sx, sy, 4.0, 0, Math.PI * 2);
-        overlayCtx.fillStyle = '#06b6d4';
+        overlayCtx.arc(sx, sy, 4.5, 0, Math.PI * 2);
+        overlayCtx.fillStyle = `rgb(${r255}, ${g255}, ${b255})`;
         overlayCtx.fill();
         overlayCtx.strokeStyle = '#ffffff';
         overlayCtx.lineWidth = 1.2;
@@ -1420,8 +1385,7 @@
     function exportTrajectoryJSON() {
       const exportObj = {
         trajectory: state.trajectory3D,
-        snapshotsCount: state.keyframeSnapshots.length,
-        pointCloudCount: state.pointCloud3D.length
+        pointCloud: state.pointCloud3D
       };
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj, null, 2));
       const downloadAnchor = document.createElement('a');
@@ -1447,7 +1411,7 @@
     }
 
     // ==========================================
-    // 5. THREE.JS 3D MAPPING & SPATIAL AVATAR
+    // 5. THREE.JS 3D MAPPING & RGB VERTEX COLORS
     // ==========================================
     function initThreeJS() {
       const width = window.innerWidth;
@@ -1482,9 +1446,6 @@
 
       pillarsGroup = new THREE.Group();
       scene.add(pillarsGroup);
-
-      keyframeBillboardsGroup = new THREE.Group();
-      scene.add(keyframeBillboardsGroup);
 
       // Start Marker (S)
       const startGeo = new THREE.SphereGeometry(0.12, 16, 16);
@@ -1531,13 +1492,13 @@
 
       scene.add(cameraAvatarGroup);
 
-      // 3D Point Cloud Landmarks
+      // REAL CAMERA-SAMPLED RGB POINT CLOUD WITH VERTEX COLORS
       pointCloudGeometry = new THREE.BufferGeometry();
       const pointCloudMat = new THREE.PointsMaterial({
-        color: 0x06b6d4,
-        size: 0.07,
-        transparent: true,
-        opacity: 0.95
+        vertexColors: true,
+        size: 0.08,
+        transparent: false,
+        sizeAttenuation: true
       });
       pointCloudParticles = new THREE.Points(pointCloudGeometry, pointCloudMat);
       scene.add(pointCloudParticles);
@@ -1631,15 +1592,27 @@
         }
       }
 
-      // Point Cloud Landmarks
-      if (state.pointCloud3D.length > 0) {
-        const positions = new Float32Array(state.pointCloud3D.length * 3);
-        state.pointCloud3D.forEach((p, idx) => {
-          positions[idx * 3] = p.x;
-          positions[idx * 3 + 1] = p.y;
-          positions[idx * 3 + 2] = p.z;
-        });
+      // UPDATE POINT CLOUD WITH VERTEX COLORS FROM CAMERA SAMPLES
+      const ptCount = state.pointCloud3D.length;
+      if (ptCount > 0) {
+        const positions = new Float32Array(ptCount * 3);
+        const rgbColors = new Float32Array(ptCount * 3);
+
+        for (let i = 0; i < ptCount; i++) {
+          const pt = state.pointCloud3D[i];
+          positions[i * 3] = pt.x;
+          positions[i * 3 + 1] = pt.y;
+          positions[i * 3 + 2] = pt.z;
+
+          rgbColors[i * 3] = pt.r !== undefined ? pt.r : 0.2;
+          rgbColors[i * 3 + 1] = pt.g !== undefined ? pt.g : 0.8;
+          rgbColors[i * 3 + 2] = pt.b !== undefined ? pt.b : 0.9;
+        }
+
         pointCloudGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        pointCloudGeometry.setAttribute('color', new THREE.BufferAttribute(rgbColors, 3));
+        pointCloudGeometry.attributes.position.needsUpdate = true;
+        pointCloudGeometry.attributes.color.needsUpdate = true;
       }
 
       // 3D Orbit Camera Tracking
@@ -1668,8 +1641,6 @@
       state.newlyDetectedFeatures = [];
       state.pointCloud3D = [];
       state.trajectory3D = [];
-      state.keyframeSnapshots = [];
-      lastKeyframeDistance = 0;
 
       while (trajectoryMeshGroup.children.length > 0) {
         const obj = trajectoryMeshGroup.children.pop();
@@ -1679,16 +1650,16 @@
         const obj = pillarsGroup.children.pop();
         if (obj.geometry) obj.geometry.dispose();
       }
-      while (keyframeBillboardsGroup.children.length > 0) {
-        const obj = keyframeBillboardsGroup.children.pop();
-        if (obj.geometry) obj.geometry.dispose();
-      }
       pointCloudGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(0), 3));
+      pointCloudGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(0), 3));
+
+      statPtsCount.textContent = '0';
+      statSummaryPts.textContent = '0 点';
 
       renderTrajectoryCanvases();
       setStatus('原点をリセットしました', 'bg-sky-500');
       setTimeout(() => {
-        if (state.isTracking) setStatus('自己位置推定中 (De-rotation稼働)', 'bg-emerald-500');
+        if (state.isTracking) setStatus('自己位置推定中 (実写RGB点群生成)', 'bg-emerald-500');
         else setStatus('一時停止中', 'bg-amber-500');
       }, 1200);
     }

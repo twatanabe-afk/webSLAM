@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>iPhone Visual SLAM - RGB Colored Point Cloud & VIO</title>
+  <title>iPhone Visual SLAM - Triangulated Spatial 3D Mapping</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Three.js for 3D Spatial Visualization -->
@@ -48,11 +48,11 @@
     }
 
     .pip-container {
-      width: 120px;
-      height: 165px;
-      border-radius: 16px;
+      width: 125px;
+      height: 175px;
+      border-radius: 18px;
       overflow: hidden;
-      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8), 0 0 0 2px rgba(56, 189, 248, 0.6);
+      box-shadow: 0 12px 35px rgba(0, 0, 0, 0.85), 0 0 0 2px rgba(56, 189, 248, 0.7);
       transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     }
     .pip-container:active {
@@ -67,15 +67,6 @@
     .status-pulse {
       animation: pulse-ring 2s infinite ease-in-out;
     }
-
-    ::-webkit-scrollbar {
-      width: 4px;
-      height: 4px;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.2);
-      border-radius: 4px;
-    }
   </style>
 </head>
 <body class="relative w-screen h-screen overflow-hidden flex flex-col bg-black text-slate-100 select-none">
@@ -85,7 +76,7 @@
     <div class="flex items-center space-x-2.5">
       <div id="status-indicator" class="w-3 h-3 rounded-full bg-amber-500 status-pulse"></div>
       <div>
-        <h1 class="text-[10px] font-bold tracking-widest uppercase text-sky-400">Visual SLAM Engine v2.5</h1>
+        <h1 class="text-[10px] font-bold tracking-widest uppercase text-sky-400">Triangulation SLAM v3.0</h1>
         <div id="status-text" class="text-xs font-bold text-slate-100 flex items-center gap-1.5">
           カメラ初期化中...
         </div>
@@ -93,7 +84,7 @@
     </div>
     
     <div class="flex items-center space-x-1.5">
-      <!-- Camera Permission / Wake Trigger -->
+      <!-- Camera Wake / Permission button -->
       <button id="btn-cam-retry" class="px-2.5 h-8 rounded-full glass-button flex items-center space-x-1 text-xs font-semibold text-amber-300">
         <i class="fa-solid fa-video text-xs"></i>
         <span>起動</span>
@@ -118,10 +109,10 @@
     </div>
   </header>
 
-  <!-- VIEWPORTS CONTAINER -->
+  <!-- MAIN VIEWPORTS CONTAINER -->
   <main id="viewport-root" class="relative w-full h-full flex-1 overflow-hidden">
     
-    <!-- CAMERA VIEWPORT WITH 2D CANVAS -->
+    <!-- CAMERA VIEWPORT WITH 2D CANVAS OVERLAY -->
     <div id="camera-viewport" class="absolute inset-0 w-full h-full z-10 transition-all duration-300">
       <video id="camera-feed" playsinline webkit-playsinline autoplay muted class="absolute inset-0 w-full h-full object-cover"></video>
       <canvas id="tracking-canvas" class="absolute inset-0 w-full h-full z-20 pointer-events-none"></canvas>
@@ -129,20 +120,20 @@
       <!-- Live Feature Overlay HUD -->
       <div class="absolute top-24 left-4 z-30 pointer-events-none flex flex-col space-y-1.5">
         <span class="px-2.5 py-1 rounded-full text-[10px] font-mono bg-black/75 backdrop-blur-md border border-cyan-400/40 text-cyan-300 w-max flex items-center gap-1.5 shadow-lg">
-          <i class="fa-solid fa-circle-dot text-cyan-400 text-[9px]"></i> 厳選端点: <span id="stat-features" class="font-bold text-white">0</span>
+          <i class="fa-solid fa-crosshairs text-cyan-400 text-[9px]"></i> 追跡端点: <span id="stat-features" class="font-bold text-white">0</span>
+        </span>
+        <span class="px-2.5 py-1 rounded-full text-[10px] font-mono bg-black/75 backdrop-blur-md border border-emerald-400/40 text-emerald-300 w-max flex items-center gap-1.5 shadow-lg">
+          <i class="fa-solid fa-cube text-emerald-400 text-[9px]"></i> 3D空間点群 (実写色): <span id="stat-triangulated" class="font-bold text-white">0</span>
         </span>
         <span class="px-2.5 py-1 rounded-full text-[10px] font-mono bg-black/75 backdrop-blur-md border border-sky-400/30 text-sky-300 w-max flex items-center gap-1.5 shadow-lg">
           <i class="fa-solid fa-gauge-high text-[9px]"></i> FPS: <span id="stat-fps" class="font-bold text-white">0</span>
         </span>
-        <span class="px-2.5 py-1 rounded-full text-[10px] font-mono bg-black/75 backdrop-blur-md border border-purple-400/30 text-purple-300 w-max flex items-center gap-1.5 shadow-lg">
-          <i class="fa-solid fa-palette text-[9px]"></i> 実写カラー点群: <span id="stat-pts-count" class="font-bold text-white">0</span>
-        </span>
-        <span id="stat-de-rot-badge" class="px-2 py-0.5 rounded text-[9px] font-mono bg-emerald-950/80 border border-emerald-400/30 text-emerald-300 w-max">
-          <i class="fa-solid fa-rotate text-[8px]"></i> 回転相殺フィルター稼働中
+        <span id="stat-parallax-badge" class="px-2 py-0.5 rounded text-[9px] font-mono bg-indigo-950/80 border border-indigo-400/30 text-indigo-300 w-max">
+          <i class="fa-solid fa-arrows-split-up-and-left text-[8px]"></i> 視差三角測量 (Ray-Intersection)
         </span>
       </div>
 
-      <!-- Center Crosshair -->
+      <!-- Center Crosshair Target -->
       <div class="absolute inset-0 pointer-events-none flex items-center justify-center z-15">
         <div class="w-14 h-14 rounded-full border border-sky-400/30 border-dashed flex items-center justify-center">
           <div class="w-1.5 h-1.5 rounded-full bg-sky-400"></div>
@@ -155,11 +146,11 @@
       <div id="three-canvas-container" class="w-full h-full"></div>
 
       <div class="absolute top-24 left-4 z-20 pointer-events-none flex flex-col space-y-1.5">
-        <span class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-purple-950/80 border border-purple-400/40 text-purple-200 backdrop-blur-md flex items-center gap-1.5 shadow-lg">
-          <i class="fa-solid fa-cubes-stacked"></i> 3D空間 (実写RGB点群 & 錐台)
+        <span class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-950/80 border border-indigo-400/40 text-indigo-200 backdrop-blur-md flex items-center gap-1.5 shadow-lg">
+          <i class="fa-solid fa-cubes"></i> 3D実空間マッピング (Y軸正=上空)
         </span>
         <span class="text-[9px] text-slate-300 bg-black/70 px-2 py-0.5 rounded-md backdrop-blur-sm border border-white/10">
-          <i class="fa-solid fa-arrows-spin text-sky-400"></i> スワイプで360度回転 / ドラッグ移動
+          <i class="fa-solid fa-hand-pointer text-sky-400"></i> スワイプで視点回転 / ピンチでズーム
         </span>
       </div>
     </div>
@@ -176,7 +167,7 @@
     <!-- 2D TOP-DOWN RADAR -->
     <div class="absolute bottom-52 right-4 z-30 w-24 h-24 rounded-2xl glass-panel border border-sky-400/30 overflow-hidden shadow-2xl flex flex-col items-center justify-center">
       <canvas id="radar-canvas" class="w-full h-full"></canvas>
-      <span class="absolute bottom-1 text-[8px] font-mono text-sky-300 bg-black/70 px-1 rounded">RADAR</span>
+      <span class="absolute bottom-1 text-[8px] font-mono text-sky-300 bg-black/70 px-1 rounded">RADAR (XZ)</span>
     </div>
 
   </main>
@@ -203,10 +194,10 @@
 
     <div class="flex border-b border-white/10 bg-black/40 text-[11px] font-semibold text-slate-300">
       <button id="tab-traj-2d" class="flex-1 py-2 px-3 border-b-2 border-purple-400 text-purple-300 bg-purple-500/10 transition flex items-center justify-center gap-1">
-        <i class="fa-solid fa-draw-polygon"></i> 2D平面 (XZ)
+        <i class="fa-solid fa-draw-polygon"></i> 水平歩行面 (XZ)
       </button>
       <button id="tab-traj-height" class="flex-1 py-2 px-3 border-b-2 border-transparent hover:text-white transition flex items-center justify-center gap-1">
-        <i class="fa-solid fa-chart-line"></i> 高度推移 (Y)
+        <i class="fa-solid fa-chart-line"></i> 上下高度 (Y)
       </button>
       <button id="tab-traj-stats" class="flex-1 py-2 px-3 border-b-2 border-transparent hover:text-white transition flex items-center justify-center gap-1">
         <i class="fa-solid fa-sliders"></i> 設定 & 統計
@@ -218,7 +209,7 @@
         <div class="relative w-full h-48 bg-slate-950 rounded-2xl border border-purple-400/30 overflow-hidden flex items-center justify-center">
           <canvas id="traj-canvas-2d" class="w-full h-full"></canvas>
           <div class="absolute top-2 left-2 text-[9px] font-mono bg-black/75 px-2 py-0.5 rounded text-purple-300 border border-purple-400/20">
-            Top-Down Footprint (1m/grid)
+            XZ Ground Footprint (1m/grid)
           </div>
         </div>
       </div>
@@ -227,7 +218,7 @@
         <div class="relative w-full h-48 bg-slate-950 rounded-2xl border border-sky-400/30 overflow-hidden flex items-center justify-center">
           <canvas id="traj-canvas-height" class="w-full h-full"></canvas>
           <div class="absolute top-2 left-2 text-[9px] font-mono bg-black/75 px-2 py-0.5 rounded text-sky-300 border border-sky-400/20">
-            Y-Axis Drift vs Time
+            Y-Axis Elevation (+Y = Up)
           </div>
         </div>
       </div>
@@ -235,11 +226,11 @@
       <div id="view-traj-stats" class="hidden space-y-3">
         <div class="grid grid-cols-2 gap-2 text-[10px] font-mono">
           <div class="glass-card p-2 rounded-xl">
-            <span class="text-slate-400">移動幅 X:</span>
+            <span class="text-slate-400">移動幅 X (横):</span>
             <div id="stat-env-x" class="text-sky-300 font-bold text-xs">0.00 m</div>
           </div>
           <div class="glass-card p-2 rounded-xl">
-            <span class="text-slate-400">移動幅 Z:</span>
+            <span class="text-slate-400">移動幅 Z (前後):</span>
             <div id="stat-env-z" class="text-purple-300 font-bold text-xs">0.00 m</div>
           </div>
           <div class="glass-card p-2 rounded-xl">
@@ -247,24 +238,24 @@
             <div id="stat-env-y" class="text-emerald-300 font-bold text-xs">0.00 m</div>
           </div>
           <div class="glass-card p-2 rounded-xl">
-            <span class="text-slate-400">実写点群数:</span>
+            <span class="text-slate-400">復元3D特徴点:</span>
             <div id="stat-summary-pts" class="text-cyan-300 font-bold text-xs">0 点</div>
           </div>
         </div>
 
         <div class="space-y-2 glass-card p-2.5 rounded-2xl border border-white/10">
           <div class="flex justify-between text-[10px]">
-            <span class="text-slate-300">履歴ポイント数:</span>
-            <span id="label-trail-length" class="font-bold text-purple-300">200 点</span>
+            <span class="text-slate-300">軌跡履歴長:</span>
+            <span id="label-trail-length" class="font-bold text-purple-300">250 点</span>
           </div>
-          <input id="slider-trail-length" type="range" min="30" max="500" value="200" class="w-full accent-purple-400 bg-slate-800 rounded-lg h-1.5 cursor-pointer">
+          <input id="slider-trail-length" type="range" min="30" max="600" value="250" class="w-full accent-purple-400 bg-slate-800 rounded-lg h-1.5 cursor-pointer">
 
           <div class="flex justify-between text-[10px] pt-1">
-            <span class="text-slate-300">3D軌跡カラーモード:</span>
+            <span class="text-slate-300">3D軌跡着色:</span>
             <select id="select-color-mode" class="bg-slate-900 text-purple-200 border border-purple-400/40 rounded px-1 py-0.5 text-[10px]">
+              <option value="elevation">高度 (Y軸: 青=低, 赤=高)</option>
               <option value="speed">移動速度</option>
-              <option value="elevation">高度 (Y軸)</option>
-              <option value="time">時間経過</option>
+              <option value="time">経過時間</option>
             </select>
           </div>
         </div>
@@ -294,29 +285,29 @@
         <div class="flex items-center space-x-2">
           <div class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping"></div>
           <span class="text-xs font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-1">
-            <i class="fa-solid fa-location-dot text-rose-400"></i> 自己位置 & 姿勢
+            <i class="fa-solid fa-location-dot text-rose-400"></i> 自己位置 & 空間座標
           </span>
         </div>
         <div class="flex items-center space-x-2">
-          <span class="text-[10px] text-slate-400 font-mono">移動: <span id="stat-dist" class="text-sky-300 font-bold">0.00m</span> | 速度: <span id="stat-speed" class="text-emerald-300 font-bold">0.00m/s</span></span>
+          <span class="text-[10px] text-slate-400 font-mono">累積: <span id="stat-dist" class="text-sky-300 font-bold">0.00m</span> | 速度: <span id="stat-speed" class="text-emerald-300 font-bold">0.00m/s</span></span>
           <button id="btn-reset-origin" class="px-2 py-0.5 rounded-lg text-[9px] font-bold bg-rose-500/30 hover:bg-rose-500/50 border border-rose-400/40 text-rose-200 transition">
             原点リセット
           </button>
         </div>
       </div>
 
-      <!-- X, Y, Z Coordinates -->
+      <!-- X, Y, Z Coordinates (Right-Handed: X=Right, Y=Up, Z=Back) -->
       <div class="grid grid-cols-3 gap-1.5 text-center font-mono">
         <div class="glass-card p-1.5 rounded-xl border border-sky-400/20">
-          <div class="text-[8px] font-bold uppercase tracking-wider text-slate-400">X (左右)</div>
+          <div class="text-[8px] font-bold uppercase tracking-wider text-slate-400">X (左右 +右)</div>
           <div id="pos-x" class="text-sm font-extrabold text-sky-300">0.00 <span class="text-[8px] text-slate-400 font-normal">m</span></div>
         </div>
         <div class="glass-card p-1.5 rounded-xl border border-emerald-400/20">
-          <div class="text-[8px] font-bold uppercase tracking-wider text-slate-400">Y (上下)</div>
+          <div class="text-[8px] font-bold uppercase tracking-wider text-emerald-400">Y (上下 +上)</div>
           <div id="pos-y" class="text-sm font-extrabold text-emerald-300">0.00 <span class="text-[8px] text-slate-400 font-normal">m</span></div>
         </div>
         <div class="glass-card p-1.5 rounded-xl border border-purple-400/20">
-          <div class="text-[8px] font-bold uppercase tracking-wider text-slate-400">Z (前後)</div>
+          <div class="text-[8px] font-bold uppercase tracking-wider text-slate-400">Z (前後 -前)</div>
           <div id="pos-z" class="text-sm font-extrabold text-purple-300">0.00 <span class="text-[8px] text-slate-400 font-normal">m</span></div>
         </div>
       </div>
@@ -363,7 +354,7 @@
       <div id="icon-vectors-box" class="w-9 h-9 rounded-full glass-button flex items-center justify-center mb-1 text-cyan-400">
         <i class="fa-solid fa-vector-square"></i>
       </div>
-      <span class="text-[9px] font-medium">特徴点表示</span>
+      <span class="text-[9px] font-medium">端点表示</span>
     </button>
   </footer>
 
@@ -372,7 +363,7 @@
     <div class="glass-panel w-full max-w-md max-h-[82vh] rounded-3xl p-6 overflow-y-auto space-y-4 border border-white/15 shadow-2xl">
       <div class="flex justify-between items-center pb-2 border-b border-white/10">
         <h2 class="text-base font-bold text-white flex items-center gap-2">
-          <i class="fa-solid fa-palette text-cyan-400"></i> 実写カラー点群 & SLAM機能
+          <i class="fa-solid fa-cubes text-emerald-400"></i> 空間三角測量 & 座標系について
         </h2>
         <button id="btn-close-modal" class="p-2 text-slate-400 hover:text-white">
           <i class="fa-solid fa-xmark text-xl"></i>
@@ -380,24 +371,24 @@
       </div>
 
       <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
-        <div class="p-3 glass-card rounded-2xl border border-cyan-500/20">
-          <h3 class="font-semibold text-cyan-300 text-sm mb-1">1. カメラ実写色テクスチャ点群 (RGB Point Cloud)</h3>
-          <p>検出された角（端点）のカメラ画像上のピクセル色（RGB）を抽出し、3D空間上の点群にそのまま反映。実際の被写体の色味を持った立体点群が形成されます。</p>
+        <div class="p-3 glass-card rounded-2xl border border-emerald-500/20">
+          <h3 class="font-semibold text-emerald-300 text-sm mb-1">1. 空間要素の三角測量 (Multi-View Triangulation)</h3>
+          <p>単一フレームでの固定深度代入を廃止し、カメラが平行移動した際の2視点間の光線交差（Ray-Ray Intersection）から各特徴点の物理的奥行き（Depth）を幾何学的に計算。壁や机などの空間要素が正確な奥行き位置に配置されます。</p>
         </div>
 
-        <div class="p-3 glass-card rounded-2xl border border-emerald-500/20">
-          <h3 class="font-semibold text-emerald-300 text-sm mb-1">2. 回転相殺 (De-rotation)</h3>
-          <p>首振り・パン動作時にジャイロから計算される回転ベクトル分をオプティカルフローから減算。向きを変えただけでは位置が動かないようドリフトを抑制します。</p>
+        <div class="p-3 glass-card rounded-2xl border border-sky-500/20">
+          <h3 class="font-semibold text-sky-300 text-sm mb-1">2. 座標系の上下反転修正 (Three.js 準拠)</h3>
+          <p>2D画像の「下向きに正となるY軸」を Three.js の右手座標系（+Y=天井/上空、-Y=地面、-Z=前進方向）へ正確に変換。首を上げると上を向き、下を向くと地面を捉える自然な3D空間を実現しました。</p>
         </div>
 
         <div class="p-3 glass-card rounded-2xl border border-purple-500/20">
-          <h3 class="font-semibold text-purple-300 text-sm mb-1">3. 3D空間再構成</h3>
-          <p>スマホの立体アバター、視界錐台（Frustum）、立体リボン軌跡、床への垂線（ドロップライン）で自己位置と向きを直感的に把握できます。</p>
+          <h3 class="font-semibold text-purple-300 text-sm mb-1">3. 実写RGBカラー抽出</h3>
+          <p>検出された角のピクセル色をカメラから直接サンプリングして3D頂点カラーとして保持します。</p>
         </div>
       </div>
 
       <button id="btn-modal-gotit" class="w-full py-3 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-sm transition shadow-lg shadow-cyan-600/30">
-        了解
+        閉じる
       </button>
     </div>
   </div>
@@ -406,7 +397,7 @@
 
   <script>
     /**
-     * iPhone Visual-Inertial Odometry & RGB Colored Point Cloud SLAM Engine
+     * iPhone Visual SLAM with Multi-View Ray Triangulation & Upright 3D Coordinate System
      */
 
     const state = {
@@ -419,7 +410,8 @@
       lastFpsUpdate: performance.now(),
       lastFrameTime: performance.now(),
       
-      // Self-Position & Camera Orientation
+      // Self-Position in Three.js coordinates:
+      // +X: Right, +Y: Up (Ceiling), -Z: Forward
       pose: {
         x: 0, y: 0, z: 0,
         pitch: 0, yaw: 0, roll: 0
@@ -427,14 +419,13 @@
       lastPose: { x: 0, y: 0, z: 0 },
       totalDistance: 0,
       currentSpeed: 0,
-      confidence: 95,
 
-      // Trajectory Analyzer
-      maxTrailLength: 200,
-      colorMode: 'speed',
+      // Trajectory Analyzer settings
+      maxTrailLength: 250,
+      colorMode: 'elevation',
       activeTrajTab: '2d',
 
-      // Gyro Orientation Data
+      // Device Gyro Orientation
       sensor: {
         alpha: 0, beta: 0, gamma: 0,
         initAlpha: null, initBeta: null, initGamma: null,
@@ -442,10 +433,9 @@
         dAlpha: 0, dBeta: 0, dGamma: 0
       },
 
-      // SLAM Feature & Landmark Store (Positions + Sampled RGB Colors)
-      trackedFeatures: [],
-      newlyDetectedFeatures: [],
-      pointCloud3D: [],     // Array of { x, y, z, r, g, b }
+      // SLAM Feature Tracking & Triangulated 3D Point Store
+      trackedFeatures: [],      // 2D tracked points with baseline history
+      triangulatedMapPoints: [],// World 3D landmarks: { x, y, z, r, g, b, confidence }
       trajectory3D: []
     };
 
@@ -471,8 +461,8 @@
     const statusIndicator = document.getElementById('status-indicator');
     const statusText = document.getElementById('status-text');
     const statFeatures = document.getElementById('stat-features');
+    const statTriangulated = document.getElementById('stat-triangulated');
     const statFps = document.getElementById('stat-fps');
-    const statPtsCount = document.getElementById('stat-pts-count');
     const statSummaryPts = document.getElementById('stat-summary-pts');
 
     const posXElem = document.getElementById('pos-x');
@@ -536,8 +526,9 @@
     let pointCloudParticles, pointCloudGeometry;
     let cameraAvatarGroup;
 
+    // Interactive 3D Orbit Controls
     let is3DTouchDragging = false, previousTouchX = 0, previousTouchY = 0;
-    let orbitAzimuth = 0, orbitElevation = 0.5, orbitDistance = 5.0;
+    let orbitAzimuth = 0, orbitElevation = 0.45, orbitDistance = 4.5;
 
     // ==========================================
     // 1. INITIALIZATION & LIFECYCLE
@@ -626,7 +617,7 @@
     }
 
     // ==========================================
-    // 2. EVENT LISTENERS
+    // 2. SENSORS & PROPER 3D COORDINATE CONVERSION
     // ==========================================
     function setupEventListeners() {
       btnStart.addEventListener('click', toggleSLAM);
@@ -663,7 +654,7 @@
 
       window.addEventListener('deviceorientation', handleOrientation, true);
 
-      // 3D Orbit Touch Handling
+      // 3D Orbit Touch Handler
       const threeContainer = document.getElementById('three-viewport');
       threeContainer.addEventListener('touchstart', (e) => {
         if (e.touches.length === 1) {
@@ -678,8 +669,8 @@
           const deltaX = e.touches[0].clientX - previousTouchX;
           const deltaY = e.touches[0].clientY - previousTouchY;
 
-          orbitAzimuth -= deltaX * 0.01;
-          orbitElevation = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, orbitElevation + deltaY * 0.01));
+          orbitAzimuth -= deltaX * 0.008;
+          orbitElevation = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, orbitElevation + deltaY * 0.008));
 
           previousTouchX = e.touches[0].clientX;
           previousTouchY = e.touches[0].clientY;
@@ -689,39 +680,6 @@
       threeContainer.addEventListener('touchend', () => {
         is3DTouchDragging = false;
       });
-    }
-
-    function toggleTrajectoryWindow() {
-      const isHidden = trajectoryWindow.classList.contains('pointer-events-none');
-      if (isHidden) {
-        trajectoryWindow.classList.remove('opacity-0', 'pointer-events-none', 'scale-95');
-        trajectoryWindow.classList.add('opacity-100', 'scale-100');
-        resizeCanvases();
-        renderTrajectoryCanvases();
-      } else {
-        trajectoryWindow.classList.add('opacity-0', 'pointer-events-none', 'scale-95');
-        trajectoryWindow.classList.remove('opacity-100', 'scale-100');
-      }
-    }
-
-    function setTrajTab(tab) {
-      state.activeTrajTab = tab;
-      [tabTraj2D, tabTrajHeight, tabTrajStats].forEach(t => {
-        t.className = "flex-1 py-2 px-3 border-b-2 border-transparent hover:text-white transition flex items-center justify-center gap-1";
-      });
-      [viewTraj2D, viewTrajHeight, viewTrajStats].forEach(v => v.classList.add('hidden'));
-
-      if (tab === '2d') {
-        tabTraj2D.className = "flex-1 py-2 px-3 border-b-2 border-purple-400 text-purple-300 bg-purple-500/10 transition flex items-center justify-center gap-1";
-        viewTraj2D.classList.remove('hidden');
-      } else if (tab === 'height') {
-        tabTrajHeight.className = "flex-1 py-2 px-3 border-b-2 border-sky-400 text-sky-300 bg-sky-500/10 transition flex items-center justify-center gap-1";
-        viewTrajHeight.classList.remove('hidden');
-      } else if (tab === 'stats') {
-        tabTrajStats.className = "flex-1 py-2 px-3 border-b-2 border-amber-400 text-amber-300 bg-amber-500/10 transition flex items-center justify-center gap-1";
-        viewTrajStats.classList.remove('hidden');
-      }
-      renderTrajectoryCanvases();
     }
 
     async function requestSensorPermissions() {
@@ -743,6 +701,12 @@
       }
     }
 
+    /**
+     * MAPPING iOS SENSOR TO THREE.JS COORDINATES
+     * Three.js: +Y is UP, +X is RIGHT, -Z is FORWARD
+     * Inverted Y-axis fix: Tilting phone up increases Pitch correctly,
+     * looking at the ceiling points into +Y world space.
+     */
     function handleOrientation(e) {
       if (e.alpha === null) return;
 
@@ -755,7 +719,6 @@
         state.sensor.lastGamma = e.gamma;
       }
 
-      // Compute Delta Angles per frame (Degrees)
       let dAlpha = e.alpha - state.sensor.lastAlpha;
       let dBeta = e.beta - state.sensor.lastBeta;
       let dGamma = e.gamma - state.sensor.lastGamma;
@@ -771,17 +734,16 @@
       state.sensor.lastBeta = e.beta;
       state.sensor.lastGamma = e.gamma;
 
-      state.sensor.alpha = e.alpha;
-      state.sensor.beta = e.beta;
-      state.sensor.gamma = e.gamma;
+      // Coordinate alignment:
+      // Yaw rotates around Y axis (compass heading)
+      // Pitch: beta tilted upwards (ceiling) gives positive pitch
+      state.pose.yaw = (e.alpha - state.sensor.initAlpha);
+      state.pose.pitch = (e.beta - state.sensor.initBeta);
+      state.pose.roll = -(e.gamma - state.sensor.initGamma);
 
-      state.pose.yaw = (e.alpha - state.sensor.initAlpha).toFixed(1);
-      state.pose.pitch = (e.beta - state.sensor.initBeta).toFixed(1);
-      state.pose.roll = (e.gamma - state.sensor.initGamma).toFixed(1);
-
-      yawElem.textContent = `${state.pose.yaw}°`;
-      pitchElem.textContent = `${state.pose.pitch}°`;
-      rollElem.textContent = `${state.pose.roll}°`;
+      yawElem.textContent = `${state.pose.yaw.toFixed(1)}°`;
+      pitchElem.textContent = `${state.pose.pitch.toFixed(1)}°`;
+      rollElem.textContent = `${state.pose.roll.toFixed(1)}°`;
     }
 
     function toggleMainView() {
@@ -825,7 +787,7 @@
     }
 
     // ==========================================
-    // 3. CORE VIO SLAM & SHARP CORNER EXTRACTION
+    // 3. SLAM ENGINE & RAY-RAY TRIANGULATION
     // ==========================================
     function toggleSLAM() {
       ensureVideoPlaying();
@@ -835,7 +797,7 @@
         btnStartCircle.className = "w-12 h-12 rounded-full bg-rose-600 hover:bg-rose-500 flex items-center justify-center text-white shadow-lg shadow-rose-600/40 border-2 border-white/20";
         btnStartIcon.className = "fa-solid fa-stop text-lg";
         btnStartText.textContent = "停止";
-        setStatus('自己位置推定中 (実写RGB点群生成)', 'bg-emerald-500');
+        setStatus('空間マッピング中 (三角測量)', 'bg-emerald-500');
 
         state.lastFrameTime = performance.now();
         requestAnimationFrame(processFrameLoop);
@@ -881,8 +843,7 @@
     }
 
     /**
-     * SHI-TOMASI / HARRIS CORNER QUALITY DETECTOR + GRID-NMS
-     * Samples exact RGB pixel color alongside corner coordinates.
+     * EXTRACT SHARP CORNERS WITH SUBPIXEL EDGE CHECK
      */
     function extractSharpCornerEndpoints(data, width, height, maxTotal = 45) {
       const corners = [];
@@ -911,7 +872,7 @@
               const btmLum = getLuminance(data, ((y + 3) * width + x) * 4);
               const leftLum = getLuminance(data, (y * width + (x - 3)) * 4);
 
-              const contrastThreshold = 28;
+              const contrastThreshold = 30;
               let bright = 0, dark = 0;
               [topLum, rightLum, btmLum, leftLum].forEach(l => {
                 if (l > centerLum + contrastThreshold) bright++;
@@ -920,7 +881,7 @@
 
               if (bright < 2 && dark < 2) continue;
 
-              // Compute 3x3 Structure Tensor for Shi-Tomasi Corner Score
+              // Structure Tensor
               let Ixx = 0, Iyy = 0, Ixy = 0;
               for (let dy = -1; dy <= 1; dy++) {
                 for (let dx = -1; dx <= 1; dx++) {
@@ -942,12 +903,10 @@
               const detTerm = Math.sqrt(Math.max(0, (Ixx - Iyy) * (Ixx - Iyy) + 4 * Ixy * Ixy));
               const lambdaMin = (trace - detTerm) * 0.5;
 
-              if (lambdaMin > 180 && lambdaMin > bestScore) {
+              if (lambdaMin > 200 && lambdaMin > bestScore) {
                 bestScore = lambdaMin;
-                // Sample original camera RGB values
                 bestPt = { 
-                  x, 
-                  y, 
+                  x, y, 
                   score: lambdaMin,
                   r: data[centerIdx] / 255.0,
                   g: data[centerIdx + 1] / 255.0,
@@ -967,46 +926,99 @@
     }
 
     /**
-     * VISUAL-INERTIAL ODOMETRY WITH DE-ROTATION & CAMERA RGB EXTRACTION
+     * CONVERT 2D IMAGE PIXEL TO NORMALIZED 3D CAMERA RAY IN WORLD SPACE
+     * Coordinate Fix:
+     * In 2D: x: 0..W (left to right), y: 0..H (top to bottom).
+     * In Three.js: +X is right, +Y is UP (hence inverted from image y), -Z is forward.
+     */
+    function getNormalizedRayInWorld(px, py, width, height, pose) {
+      const focal = width * 1.05; // Normalized focal length approximation
+      // Invert Y so that top of image (py=0) projects to +Y (up towards ceiling)
+      const rayCam = new THREE.Vector3(
+        (px - width * 0.5) / focal,
+        -(py - height * 0.5) / focal, // Y-axis inverted: +Y is UP
+        -1.0                          // Looking forward along -Z
+      ).normalize();
+
+      // Transform ray by camera's current 3D rotation
+      const euler = new THREE.Euler(
+        THREE.MathUtils.degToRad(pose.pitch),
+        THREE.MathUtils.degToRad(pose.yaw),
+        THREE.MathUtils.degToRad(pose.roll),
+        'YXZ'
+      );
+      rayCam.applyEuler(euler);
+      return rayCam;
+    }
+
+    /**
+     * GEOMETRIC RAY-RAY INTERSECTION TRIANGULATION
+     * Triangulates the spatial 3D intersection between two viewing rays.
+     */
+    function triangulateTwoRays(orig0, ray0, orig1, ray1) {
+      const w0 = new THREE.Vector3().subVectors(orig0, orig1);
+      const a = ray0.dot(ray0); // 1.0
+      const b = ray0.dot(ray1);
+      const c = ray1.dot(ray1); // 1.0
+      const d = ray0.dot(w0);
+      const e = ray1.dot(w0);
+
+      const denom = a * c - b * b;
+      if (Math.abs(denom) < 1e-4) return null; // Parallel rays or no parallax
+
+      const s = (b * e - c * d) / denom;
+      const t = (a * e - b * d) / denom;
+
+      // Positive depth check (must be in front of both camera viewpoints)
+      if (s < 0.2 || t < 0.2) return null;
+      if (s > 10.0 || t > 10.0) return null; // Reject noisy infinite depths
+
+      // Closest midpoint between rays
+      const p0 = new THREE.Vector3().copy(orig0).addScaledVector(ray0, s);
+      const p1 = new THREE.Vector3().copy(orig1).addScaledVector(ray1, t);
+      
+      const distanceResidual = p0.distanceTo(p1);
+      if (distanceResidual > 0.45) return null; // Reject divergent rays
+
+      return new THREE.Vector3().addVectors(p0, p1).multiplyScalar(0.5);
+    }
+
+    /**
+     * CORE VIO SLAM & SPATIAL LANDMARK ACCUMULATION
      */
     function updateVisualInertialOdometry(imgData, width, height, dt) {
       const data = imgData.data;
-      state.newlyDetectedFeatures = [];
 
-      // 1. Replenish Corner Endpoints
-      if (state.trackedFeatures.length < 35) {
+      // Current Camera 3D Origin in World Space
+      const currentCamOrigin = new THREE.Vector3(state.pose.x, state.pose.y, state.pose.z);
+
+      // 1. Feature Replenishment & Anchor Registration
+      if (state.trackedFeatures.length < 40) {
         const candidateCorners = extractSharpCornerEndpoints(data, width, height, 40);
         for (let corner of candidateCorners) {
           const isOccupied = state.trackedFeatures.some(f => Math.hypot(f.x - corner.x, f.y - corner.y) < 16);
           if (!isOccupied) {
-            const angleRad = (state.pose.yaw * Math.PI) / 180;
-            const rx = (corner.x / width - 0.5) * 2.5;
-            const ry = -(corner.y / height - 0.5) * 2.5;
-            const rz = -1.2 - Math.random() * 2.0;
-
-            const worldX = state.pose.x + (rx * Math.cos(angleRad) - rz * Math.sin(angleRad));
-            const worldY = state.pose.y + ry;
-            const worldZ = state.pose.z + (rx * Math.sin(angleRad) + rz * Math.cos(angleRad));
-
-            const newObj = {
+            const birthRay = getNormalizedRayInWorld(corner.x, corner.y, width, height, state.pose);
+            
+            state.trackedFeatures.push({
               x: corner.x,
               y: corner.y,
+              birthX: corner.x,
+              birthY: corner.y,
               dx: 0,
               dy: 0,
-              residualX: 0,
-              residualY: 0,
               age: 0,
               color: { r: corner.r, g: corner.g, b: corner.b },
-              world3D: { x: worldX, y: worldY, z: worldZ }
-            };
-
-            state.trackedFeatures.push(newObj);
-            state.newlyDetectedFeatures.push(newObj);
+              birthPose: { ...state.pose },
+              birthOrigin: currentCamOrigin.clone(),
+              birthRay: birthRay,
+              isTriangulated: false
+            });
           }
         }
       }
 
-      // 2. Optical Flow Tracking + Patch Matching
+      // 2. Optical Flow & De-rotation
       const updatedFeatures = [];
       const residualTranslations = [];
 
@@ -1023,17 +1035,13 @@
 
         if (px < 5 || px >= width - 5 || py < 5 || py >= height - 5) continue;
 
-        let bestShiftX = 0;
-        let bestShiftY = 0;
-        let minDiff = Infinity;
+        let bestShiftX = 0, bestShiftY = 0, minDiff = Infinity;
         const currentLum = getLuminance(data, (py * width + px) * 4);
 
         for (let sy = -2; sy <= 2; sy++) {
           for (let sx = -2; sx <= 2; sx++) {
             const idx = ((py + sy) * width + (px + sx)) * 4;
-            const neighborLum = getLuminance(data, idx);
-            const diff = Math.abs(currentLum - neighborLum);
-
+            const diff = Math.abs(currentLum - getLuminance(data, idx));
             if (diff < minDiff) {
               minDiff = diff;
               bestShiftX = sx;
@@ -1048,7 +1056,7 @@
         feat.y += feat.dy;
         feat.age++;
 
-        // Keep color refreshed from the latest frame pixel
+        // Keep fresh sampled RGB color
         const curPx = Math.min(width - 1, Math.max(0, Math.floor(feat.x)));
         const curPy = Math.min(height - 1, Math.max(0, Math.floor(feat.y)));
         const curIdx = (curPy * width + curPx) * 4;
@@ -1060,21 +1068,43 @@
 
         const residualX = feat.dx - expectedDxRot;
         const residualY = feat.dy - expectedDyRot;
-
-        feat.residualX = residualX;
-        feat.residualY = residualY;
-
         residualTranslations.push({ rx: residualX, ry: residualY });
 
-        if (feat.x > 4 && feat.x < width - 4 && feat.y > 4 && feat.y < height - 4 && feat.age < 150) {
+        // 3. MULTI-VIEW RAY TRIANGULATION FOR ACCURATE SPATIAL DEPTH
+        const baseline = feat.birthOrigin.distanceTo(currentCamOrigin);
+        if (!feat.isTriangulated && baseline >= 0.05 && feat.age > 4) {
+          const currentRay = getNormalizedRayInWorld(feat.x, feat.y, width, height, state.pose);
+          const angleDiff = feat.birthRay.angleTo(currentRay);
+
+          // Parallax angle threshold check
+          if (angleDiff > 0.04) { // ~2.3 degrees
+            const triangulatedPoint = triangulateTwoRays(feat.birthOrigin, feat.birthRay, currentCamOrigin, currentRay);
+            if (triangulatedPoint) {
+              feat.isTriangulated = true;
+
+              // Register as permanent 3D spatial landmark
+              const exists = state.triangulatedMapPoints.some(p => p.position.distanceTo(triangulatedPoint) < 0.08);
+              if (!exists && state.triangulatedMapPoints.length < 3500) {
+                state.triangulatedMapPoints.push({
+                  position: triangulatedPoint,
+                  color: { ...feat.color }
+                });
+              }
+            }
+          }
+        }
+
+        if (feat.x > 4 && feat.x < width - 4 && feat.y > 4 && feat.y < height - 4 && feat.age < 180) {
           updatedFeatures.push(feat);
         }
       }
 
       state.trackedFeatures = updatedFeatures;
       statFeatures.textContent = state.trackedFeatures.length;
+      statTriangulated.textContent = state.triangulatedMapPoints.length;
+      statSummaryPts.textContent = `${state.triangulatedMapPoints.length} 点`;
 
-      // 3. Robust Consensus on Residual Translational Motion (Median Filter)
+      // 4. Update Translational Odometry using Median Consensus
       if (residualTranslations.length > 3) {
         const sortedRx = residualTranslations.map(p => p.rx).sort((a, b) => a - b);
         const sortedRy = residualTranslations.map(p => p.ry).sort((a, b) => a - b);
@@ -1086,9 +1116,11 @@
         if (Math.abs(medianResidualX) < 0.25) medianResidualX = 0;
         if (Math.abs(medianResidualY) < 0.25) medianResidualY = 0;
 
+        // Translation scale in meters
         const translationScale = 0.012;
+        // Invert Y mapping for correct Three.js coordinate (+Y is UP, moving phone up shifts image down)
         const deltaTransX = -medianResidualX * translationScale;
-        const deltaTransY = medianResidualY * translationScale;
+        const deltaTransY = -medianResidualY * translationScale; // +Y is UP
         const deltaTransZ = -(Math.abs(medianResidualX) + Math.abs(medianResidualY)) * 0.001;
 
         state.pose.x += deltaTransX;
@@ -1115,14 +1147,14 @@
       state.sensor.dBeta = 0;
       state.sensor.dGamma = 0;
 
-      // Update UI Telemetry
+      // Telemetry UI
       posXElem.textContent = state.pose.x.toFixed(2);
       posYElem.textContent = state.pose.y.toFixed(2);
       posZElem.textContent = state.pose.z.toFixed(2);
       statDistElem.textContent = `${state.totalDistance.toFixed(2)}m`;
       statSpeedElem.textContent = `${state.currentSpeed.toFixed(2)}m/s`;
 
-      // Record trajectory waypoint
+      // Trajectory record
       const nowTs = performance.now();
       const currentPosNode = {
         x: state.pose.x,
@@ -1137,26 +1169,6 @@
                      currentPosNode.z - state.trajectory3D[state.trajectory3D.length - 1].z) > 0.02) {
         state.trajectory3D.push(currentPosNode);
       }
-
-      // Record 3D Point Cloud Landmarks WITH EXACT CAMERA RGB COLORS
-      state.trackedFeatures.forEach(feat => {
-        const pt = {
-          x: feat.world3D.x,
-          y: feat.world3D.y,
-          z: feat.world3D.z,
-          r: feat.color.r,
-          g: feat.color.g,
-          b: feat.color.b
-        };
-
-        const exists = state.pointCloud3D.some(p => Math.hypot(p.x - pt.x, p.y - pt.y, p.z - pt.z) < 0.14);
-        if (!exists && state.pointCloud3D.length < 2500) {
-          state.pointCloud3D.push(pt);
-        }
-      });
-
-      statPtsCount.textContent = state.pointCloud3D.length;
-      statSummaryPts.textContent = `${state.pointCloud3D.length} 点`;
     }
 
     function getLuminance(data, index) {
@@ -1164,7 +1176,7 @@
     }
 
     // ==========================================
-    // 4. 2D CAMERA OVERLAY & TRAJECTORY WINDOW
+    // 4. 2D OVERLAYS, RADAR & TRAJECTORY VIEWS
     // ==========================================
     function render2DTrackingOverlay() {
       const width = overlayCanvas.width;
@@ -1176,42 +1188,30 @@
 
       if (!state.showVectors) return;
 
-      // Draw Optical Flow Vectors & Verified Endpoints
       state.trackedFeatures.forEach(feat => {
         const sx = feat.x * scaleX;
         const sy = feat.y * scaleY;
 
-        // Yellow Optical Flow Motion Vector Lines
+        // Optical flow vector
         overlayCtx.beginPath();
         overlayCtx.moveTo(sx, sy);
         overlayCtx.lineTo(sx + feat.dx * scaleX * 6, sy + feat.dy * scaleY * 6);
-        overlayCtx.strokeStyle = '#facc15';
+        overlayCtx.strokeStyle = feat.isTriangulated ? '#10b981' : '#facc15';
         overlayCtx.lineWidth = 2.0;
         overlayCtx.stroke();
 
-        // Exact Camera Color Swatch with border for corner endpoint
+        // Exact Camera sampled RGB dot
         const r255 = Math.round(feat.color.r * 255);
         const g255 = Math.round(feat.color.g * 255);
         const b255 = Math.round(feat.color.b * 255);
 
         overlayCtx.beginPath();
-        overlayCtx.arc(sx, sy, 4.5, 0, Math.PI * 2);
+        overlayCtx.arc(sx, sy, feat.isTriangulated ? 5.5 : 4.0, 0, Math.PI * 2);
         overlayCtx.fillStyle = `rgb(${r255}, ${g255}, ${b255})`;
         overlayCtx.fill();
-        overlayCtx.strokeStyle = '#ffffff';
-        overlayCtx.lineWidth = 1.2;
+        overlayCtx.strokeStyle = feat.isTriangulated ? '#10b981' : '#ffffff';
+        overlayCtx.lineWidth = 1.5;
         overlayCtx.stroke();
-      });
-
-      // Newly Discovered Corner Endpoints (Red)
-      state.newlyDetectedFeatures.forEach(feat => {
-        const sx = feat.x * scaleX;
-        const sy = feat.y * scaleY;
-
-        overlayCtx.beginPath();
-        overlayCtx.arc(sx, sy, 5.0, 0, Math.PI * 2);
-        overlayCtx.fillStyle = '#f43f5e';
-        overlayCtx.fill();
       });
     }
 
@@ -1234,6 +1234,14 @@
       radarCtx.moveTo(cx, 0); radarCtx.lineTo(cx, rh);
       radarCtx.moveTo(0, cy); radarCtx.lineTo(rw, cy);
       radarCtx.stroke();
+
+      // Plot triangulated landmarks on radar
+      radarCtx.fillStyle = '#10b981';
+      state.triangulatedMapPoints.slice(-100).forEach(p => {
+        const rx = cx + p.position.x * 12;
+        const ry = cy + p.position.z * 12;
+        radarCtx.fillRect(rx - 1, ry - 1, 2, 2);
+      });
 
       if (state.trajectory3D.length > 1) {
         radarCtx.beginPath();
@@ -1366,12 +1374,13 @@
 
         if (traj.length > 1) {
           trajCtxHeight.beginPath();
-          trajCtxHeight.strokeStyle = '#38bdf8';
+          trajCtxHeight.strokeStyle = '#10b981';
           trajCtxHeight.lineWidth = 2;
 
           const stepX = w / (traj.length - 1);
           traj.forEach((p, idx) => {
             const px = idx * stepX;
+            // +Y is UP in Three.js, so on canvas it should be higher (smaller screen Y)
             const py = h / 2 - p.y * 40;
             if (idx === 0) trajCtxHeight.moveTo(px, py);
             else trajCtxHeight.lineTo(px, py);
@@ -1382,15 +1391,51 @@
       }
     }
 
+    function toggleTrajectoryWindow() {
+      const isHidden = trajectoryWindow.classList.contains('pointer-events-none');
+      if (isHidden) {
+        trajectoryWindow.classList.remove('opacity-0', 'pointer-events-none', 'scale-95');
+        trajectoryWindow.classList.add('opacity-100', 'scale-100');
+        resizeCanvases();
+        renderTrajectoryCanvases();
+      } else {
+        trajectoryWindow.classList.add('opacity-0', 'pointer-events-none', 'scale-95');
+        trajectoryWindow.classList.remove('opacity-100', 'scale-100');
+      }
+    }
+
+    function setTrajTab(tab) {
+      state.activeTrajTab = tab;
+      [tabTraj2D, tabTrajHeight, tabTrajStats].forEach(t => {
+        t.className = "flex-1 py-2 px-3 border-b-2 border-transparent hover:text-white transition flex items-center justify-center gap-1";
+      });
+      [viewTraj2D, viewTrajHeight, viewTrajStats].forEach(v => v.classList.add('hidden'));
+
+      if (tab === '2d') {
+        tabTraj2D.className = "flex-1 py-2 px-3 border-b-2 border-purple-400 text-purple-300 bg-purple-500/10 transition flex items-center justify-center gap-1";
+        viewTraj2D.classList.remove('hidden');
+      } else if (tab === 'height') {
+        tabTrajHeight.className = "flex-1 py-2 px-3 border-b-2 border-sky-400 text-sky-300 bg-sky-500/10 transition flex items-center justify-center gap-1";
+        viewTrajHeight.classList.remove('hidden');
+      } else if (tab === 'stats') {
+        tabTrajStats.className = "flex-1 py-2 px-3 border-b-2 border-amber-400 text-amber-300 bg-amber-500/10 transition flex items-center justify-center gap-1";
+        viewTrajStats.classList.remove('hidden');
+      }
+      renderTrajectoryCanvases();
+    }
+
     function exportTrajectoryJSON() {
       const exportObj = {
         trajectory: state.trajectory3D,
-        pointCloud: state.pointCloud3D
+        triangulatedMapPoints: state.triangulatedMapPoints.map(p => ({
+          x: p.position.x, y: p.position.y, z: p.position.z,
+          r: p.color.r, g: p.color.g, b: p.color.b
+        }))
       };
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj, null, 2));
       const downloadAnchor = document.createElement('a');
       downloadAnchor.setAttribute("href", dataStr);
-      downloadAnchor.setAttribute("download", `slam_trajectory_${Date.now()}.json`);
+      downloadAnchor.setAttribute("download", `slam_spatial_${Date.now()}.json`);
       document.body.appendChild(downloadAnchor);
       downloadAnchor.click();
       downloadAnchor.remove();
@@ -1411,7 +1456,7 @@
     }
 
     // ==========================================
-    // 5. THREE.JS 3D MAPPING & RGB VERTEX COLORS
+    // 5. THREE.JS 3D SCENE & UPRIGHT COORDINATES
     // ==========================================
     function initThreeJS() {
       const width = window.innerWidth;
@@ -1420,8 +1465,9 @@
       scene = new THREE.Scene();
       scene.background = new THREE.Color(0x0a0c16);
 
+      // Camera positioned looking into -Z, slightly elevated along +Y
       camera3D = new THREE.PerspectiveCamera(60, width / height, 0.1, 100);
-      camera3D.position.set(0, 2.5, 4.5);
+      camera3D.position.set(0, 2.2, 4.0);
       camera3D.lookAt(0, 0, 0);
 
       renderer3D = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -1437,6 +1483,7 @@
       dirLight.position.set(5, 10, 7);
       scene.add(dirLight);
 
+      // Floor grid located at -0.8m on Y axis (below phone)
       const grid = new THREE.GridHelper(20, 20, 0x38bdf8, 0x1e293b);
       grid.position.y = -0.8;
       scene.add(grid);
@@ -1453,13 +1500,13 @@
       startMarkerMesh = new THREE.Mesh(startGeo, startMat);
       scene.add(startMarkerMesh);
 
-      // Current Marker (C)
+      // Current Head Marker (C)
       const currentGeo = new THREE.SphereGeometry(0.08, 16, 16);
       const currentMat = new THREE.MeshStandardMaterial({ color: 0xf43f5e, emissive: 0xe11d48 });
       currentMarkerMesh = new THREE.Mesh(currentGeo, currentMat);
       scene.add(currentMarkerMesh);
 
-      // 3D CAMERA ORIENTATION AVATAR
+      // 3D CAMERA ORIENTATION AVATAR & FRUSTUM
       cameraAvatarGroup = new THREE.Group();
 
       const phoneGeo = new THREE.BoxGeometry(0.22, 0.44, 0.03);
@@ -1473,7 +1520,7 @@
       screenMesh.position.z = 0.016;
       cameraAvatarGroup.add(screenMesh);
 
-      // Camera Frustum
+      // Camera Frustum Pyramid (Looking along -Z)
       const frustumGeo = new THREE.ConeGeometry(0.45, 0.6, 4);
       frustumGeo.rotateX(-Math.PI / 2);
       const frustumWireMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, wireframe: true, transparent: true, opacity: 0.7 });
@@ -1481,23 +1528,25 @@
       frustumPyramidMesh.position.z = -0.3;
       cameraAvatarGroup.add(frustumPyramidMesh);
 
-      // Heading Vector
+      // Heading Vector (Green Arrow forward along -Z)
       const arrowDir = new THREE.Vector3(0, 0, -1);
       const arrowOrigin = new THREE.Vector3(0, 0, 0);
       const headingArrowMesh = new THREE.ArrowHelper(arrowDir, arrowOrigin, 0.6, 0x10b981, 0.15, 0.1);
       cameraAvatarGroup.add(headingArrowMesh);
 
-      const axesIndicatorGroup = new THREE.AxesHelper(0.3);
+      // Axes Guide (Red: +X, Green: +Y [Up], Blue: +Z)
+      const axesIndicatorGroup = new THREE.AxesHelper(0.35);
       cameraAvatarGroup.add(axesIndicatorGroup);
 
       scene.add(cameraAvatarGroup);
 
-      // REAL CAMERA-SAMPLED RGB POINT CLOUD WITH VERTEX COLORS
+      // SPATIAL TRIANGULATED POINT CLOUD
       pointCloudGeometry = new THREE.BufferGeometry();
       const pointCloudMat = new THREE.PointsMaterial({
         vertexColors: true,
-        size: 0.08,
-        transparent: false,
+        size: 0.09,
+        transparent: true,
+        opacity: 0.95,
         sizeAttenuation: true
       });
       pointCloudParticles = new THREE.Points(pointCloudGeometry, pointCloudMat);
@@ -1507,7 +1556,7 @@
     function update3DScene() {
       if (!scene) return;
 
-      // Update 3D Camera Avatar Position & Euler Orientation
+      // Position and Rotate Camera Avatar
       cameraAvatarGroup.position.set(state.pose.x, state.pose.y, state.pose.z);
 
       const euler = new THREE.Euler(
@@ -1517,10 +1566,9 @@
         'YXZ'
       );
       cameraAvatarGroup.quaternion.setFromEuler(euler);
-
       currentMarkerMesh.position.set(state.pose.x, state.pose.y, state.pose.z);
 
-      // Reconstruct Volumetric Ribbon Trajectory
+      // Reconstruct Trajectory Ribbon with floor pillars
       if (state.trajectory3D.length > 1) {
         while (trajectoryMeshGroup.children.length > 0) {
           const obj = trajectoryMeshGroup.children.pop();
@@ -1549,8 +1597,9 @@
             const spd = Math.min(1.0, state.currentSpeed * 2.0);
             color.setHSL(0.6 - spd * 0.6, 0.9, 0.5);
           } else if (state.colorMode === 'elevation') {
+            // Blue for ground/lower, Green/Orange/Red for higher (+Y)
             const yVal = points[Math.floor(progress * (points.length - 1))].y;
-            const hue = Math.min(0.8, Math.max(0.4, 0.5 + yVal * 0.4));
+            const hue = Math.min(0.7, Math.max(0.0, 0.55 - yVal * 0.3));
             color.setHSL(hue, 0.9, 0.5);
           } else {
             color.setHSL(progress * 0.75, 0.85, 0.55);
@@ -1571,7 +1620,7 @@
         const tubeMesh = new THREE.Mesh(tubeGeometry, tubeMaterial);
         trajectoryMeshGroup.add(tubeMesh);
 
-        // Ground Drop-lines (Pillars)
+        // Ground Drop-lines (Pillars down to ground Y=-0.8m)
         const pillarStep = Math.max(1, Math.floor(points.length / 25));
         for (let i = 0; i < points.length; i += pillarStep) {
           const pt = points[i];
@@ -1592,21 +1641,21 @@
         }
       }
 
-      // UPDATE POINT CLOUD WITH VERTEX COLORS FROM CAMERA SAMPLES
-      const ptCount = state.pointCloud3D.length;
+      // UPDATE SPATIAL TRIANGULATED POINT CLOUD BUFFER
+      const ptCount = state.triangulatedMapPoints.length;
       if (ptCount > 0) {
         const positions = new Float32Array(ptCount * 3);
         const rgbColors = new Float32Array(ptCount * 3);
 
         for (let i = 0; i < ptCount; i++) {
-          const pt = state.pointCloud3D[i];
-          positions[i * 3] = pt.x;
-          positions[i * 3 + 1] = pt.y;
-          positions[i * 3 + 2] = pt.z;
+          const pt = state.triangulatedMapPoints[i];
+          positions[i * 3] = pt.position.x;
+          positions[i * 3 + 1] = pt.position.y; // Correct +Y upright
+          positions[i * 3 + 2] = pt.position.z;
 
-          rgbColors[i * 3] = pt.r !== undefined ? pt.r : 0.2;
-          rgbColors[i * 3 + 1] = pt.g !== undefined ? pt.g : 0.8;
-          rgbColors[i * 3 + 2] = pt.b !== undefined ? pt.b : 0.9;
+          rgbColors[i * 3] = pt.color.r;
+          rgbColors[i * 3 + 1] = pt.color.g;
+          rgbColors[i * 3 + 2] = pt.color.b;
         }
 
         pointCloudGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -1638,8 +1687,7 @@
       state.totalDistance = 0;
       state.currentSpeed = 0;
       state.trackedFeatures = [];
-      state.newlyDetectedFeatures = [];
-      state.pointCloud3D = [];
+      state.triangulatedMapPoints = [];
       state.trajectory3D = [];
 
       while (trajectoryMeshGroup.children.length > 0) {
@@ -1653,13 +1701,13 @@
       pointCloudGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(0), 3));
       pointCloudGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(0), 3));
 
-      statPtsCount.textContent = '0';
+      statTriangulated.textContent = '0';
       statSummaryPts.textContent = '0 点';
 
       renderTrajectoryCanvases();
       setStatus('原点をリセットしました', 'bg-sky-500');
       setTimeout(() => {
-        if (state.isTracking) setStatus('自己位置推定中 (実写RGB点群生成)', 'bg-emerald-500');
+        if (state.isTracking) setStatus('空間マッピング中 (三角測量)', 'bg-emerald-500');
         else setStatus('一時停止中', 'bg-amber-500');
       }, 1200);
     }

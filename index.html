@@ -23,7 +23,7 @@
     }
 
     .glass-panel {
-      background: rgba(15, 23, 42, 0.85);
+      background: rgba(15, 23, 42, 0.88);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
       border: 1px solid rgba(255, 255, 255, 0.12);
@@ -71,13 +71,19 @@
 </head>
 <body class="relative w-screen h-screen overflow-hidden flex flex-col bg-slate-950 text-slate-100 select-none">
 
-  <!-- TOP HEADER -->
+  <!-- TOP HEADER WITH PERMANENT BUILD VERSION BADGE -->
   <header class="absolute top-0 left-0 right-0 z-40 pt-10 pb-3 px-4 glass-panel border-b-0 rounded-b-2xl flex items-center justify-between shadow-2xl">
     <div class="flex items-center space-x-2.5">
       <div id="status-indicator" class="w-3 h-3 rounded-full bg-amber-500 status-pulse"></div>
       <div>
-        <h1 class="text-[10px] font-bold tracking-widest uppercase text-sky-400">Visual SLAM 3D Measure</h1>
-        <div id="status-text" class="text-xs font-bold text-slate-100 flex items-center gap-1.5">
+        <div class="flex items-center gap-1.5">
+          <h1 class="text-[10px] font-bold tracking-widest uppercase text-sky-400">Visual SLAM 3D Measure</h1>
+          <!-- Build Version Watermark -->
+          <span id="app-build-ver" class="px-1.5 py-0.2 rounded text-[8px] font-mono font-bold bg-cyan-950/90 text-cyan-300 border border-cyan-400/50 shadow">
+            v2026.10.27-1650
+          </span>
+        </div>
+        <div id="status-text" class="text-xs font-bold text-slate-100 flex items-center gap-1.5 mt-0.5">
           カメラ初期化中...
         </div>
       </div>
@@ -129,7 +135,7 @@
           <i class="fa-solid fa-crosshairs text-cyan-400 text-[9px]"></i> 追跡特徴点: <span id="stat-features" class="font-bold text-white">0</span>
         </span>
         <span class="px-2.5 py-1 rounded-full text-[10px] font-mono bg-black/75 backdrop-blur-md border border-emerald-400/40 text-emerald-300 w-max flex items-center gap-1.5 shadow-lg">
-          <i class="fa-solid fa-cube text-emerald-400 text-[9px]"></i> 3D空間点群 (実写RGB): <span id="stat-triangulated" class="font-bold text-white">0</span>
+          <i class="fa-solid fa-cube text-emerald-400 text-[9px]"></i> 3D確定点群: <span id="stat-triangulated" class="font-bold text-white">0</span>
         </span>
         <span class="px-2.5 py-1 rounded-full text-[10px] font-mono bg-black/75 backdrop-blur-md border border-sky-400/30 text-sky-300 w-max flex items-center gap-1.5 shadow-lg">
           <i class="fa-solid fa-gauge-high text-[9px]"></i> FPS: <span id="stat-fps" class="font-bold text-white">0</span>
@@ -151,7 +157,7 @@
       <!-- 3D Map Top Guide & Measurement Banner -->
       <div class="absolute top-24 left-4 z-20 pointer-events-none flex flex-col space-y-1.5">
         <span class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-950/85 border border-indigo-400/40 text-indigo-200 backdrop-blur-md flex items-center gap-1.5 shadow-lg">
-          <i class="fa-solid fa-cubes text-emerald-400"></i> 3D空間点群マップ (+Y: 上空, 奥行き復元)
+          <i class="fa-solid fa-cubes text-emerald-400"></i> 3D空間点群マップ (+Y: 上空, 厳密三角測量)
         </span>
         <span id="measure-instructions-badge" class="hidden text-[10px] text-amber-300 bg-amber-950/85 px-2.5 py-1 rounded-lg backdrop-blur-md border border-amber-400/50 shadow-md">
           <i class="fa-solid fa-hand-pointer text-amber-400"></i> 点群を2箇所タップして距離計測
@@ -162,17 +168,17 @@
       </div>
 
       <!-- Measure Action Floating Box (In 3D View) -->
-      <div id="measure-active-panel" class="hidden absolute top-24 right-4 z-30 glass-panel p-2.5 rounded-2xl border border-amber-500/40 shadow-2xl flex flex-col space-y-2 pointer-events-auto w-40">
+      <div id="measure-active-panel" class="hidden absolute top-24 right-4 z-30 glass-panel p-2.5 rounded-2xl border border-amber-500/40 shadow-2xl flex flex-col space-y-2 pointer-events-auto w-44">
         <div class="text-[10px] font-bold text-amber-300 flex items-center justify-between border-b border-white/10 pb-1">
           <span><i class="fa-solid fa-ruler"></i> 3D距離計測</span>
           <span id="measure-step-text" class="text-[9px] text-slate-400 font-mono">始点待ち</span>
         </div>
-        <div id="measure-dist-result" class="text-sm font-extrabold text-amber-400 font-mono text-center py-0.5 bg-black/40 rounded-lg">
+        <div id="measure-dist-result" class="text-sm font-extrabold text-amber-400 font-mono text-center py-1 bg-black/40 rounded-lg">
           -- cm
         </div>
         <div class="flex space-x-1">
           <button id="btn-measure-cam-pt" class="flex-1 py-1 px-1 rounded-lg text-[9px] font-bold bg-sky-500/20 text-sky-300 border border-sky-400/30">
-            現在地を打点
+            現在地打点
           </button>
           <button id="btn-measure-clear" class="py-1 px-2 rounded-lg text-[9px] font-bold bg-rose-500/20 text-rose-300 border border-rose-400/30">
             クリア
@@ -270,7 +276,7 @@
             <div id="stat-env-y" class="text-emerald-300 font-bold text-xs">0.00 m</div>
           </div>
           <div class="glass-card p-2 rounded-xl">
-            <span class="text-slate-400">空間復元点群:</span>
+            <span class="text-slate-400">確定3D点群:</span>
             <div id="stat-summary-pts" class="text-cyan-300 font-bold text-xs">0 点</div>
           </div>
         </div>
@@ -391,28 +397,31 @@
   <div id="modal-info" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-lg flex items-center justify-center p-5 opacity-0 pointer-events-none transition-opacity duration-300">
     <div class="glass-panel w-full max-w-md max-h-[82vh] rounded-3xl p-6 overflow-y-auto space-y-4 border border-white/15 shadow-2xl">
       <div class="flex justify-between items-center pb-2 border-b border-white/10">
-        <h2 class="text-base font-bold text-white flex items-center gap-2">
-          <i class="fa-solid fa-ruler-combined text-amber-400"></i> 3D点群マッピング & 計測ツール
-        </h2>
+        <div>
+          <h2 class="text-base font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-ruler-combined text-amber-400"></i> 3D点群マッピング & 計測ツール
+          </h2>
+          <span class="text-[9px] font-mono text-cyan-400">ビルドバージョン: v2026.10.27-1650</span>
+        </div>
         <button id="btn-close-modal" class="p-2 text-slate-400 hover:text-white">
           <i class="fa-solid fa-xmark text-xl"></i>
         </button>
       </div>
 
       <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
+        <div class="p-3 glass-card rounded-2xl border border-sky-500/20">
+          <h3 class="font-semibold text-sky-300 text-sm mb-1">1. 厳密な奥行き三角測量モデル (Depth Triangulation)</h3>
+          <p>iPhoneカメラの実効画角（水平約68°）に基づいたピンホール光線逆投影を採用。最低8cm以上のカメラ並進移動と4.0°以上の視差角（Parallax）を条件とし、空間光線交差の残差が5cm未満の信頼できる点のみを3D復元します。</p>
+        </div>
+
         <div class="p-3 glass-card rounded-2xl border border-amber-500/20">
-          <h3 class="font-semibold text-amber-300 text-sm mb-1">1. 3D距離計測ツール</h3>
-          <p>ヘッダーの「計測」をONにし、3Dマップ画面で蓄積された点群（または「現在地を打点」ボタン）から2点を指定すると、3Dユークリッド距離（メートル・cm）を立体空間内に表示します。</p>
+          <h3 class="font-semibold text-amber-300 text-sm mb-1">2. 3D空間距離計測</h3>
+          <p>「計測」ボタンを押し、3Dマップ上で蓄積された点群（または「現在地打点」）から2点をタップして指定すると、立体空間内の正確なユークリッド距離（cm / m）がガイド線とともに描画されます。</p>
         </div>
 
         <div class="p-3 glass-card rounded-2xl border border-emerald-500/20">
-          <h3 class="font-semibold text-emerald-300 text-sm mb-1">2. 多視点三角測量 (Ray-Intersection)</h3>
-          <p>スマホが移動した際の視差（Parallax）を利用して特徴点の光線同士の交点を算出し、壁や机などの空間要素を実際の奥行きに配置します。</p>
-        </div>
-
-        <div class="p-3 glass-card rounded-2xl border border-sky-500/20">
-          <h3 class="font-semibold text-sky-300 text-sm mb-1">3. 実写RGB点群の展開</h3>
-          <p>検出された角の特徴点に対応する実写カメラ画像の色をサンプリングし、実世界と同じカラーの点群として立体構築します。</p>
+          <h3 class="font-semibold text-emerald-300 text-sm mb-1">3. 実写RGBカラー保持</h3>
+          <p>検出された角点に対応する実写フレームのRGB値をそのまま点群の頂点色として焼き込み、現実に近い色合いの立体復元を行います。</p>
         </div>
       </div>
 
@@ -426,8 +435,10 @@
 
   <script>
     /**
-     * iPhone Visual SLAM with Multi-View Ray Triangulation & 3D Spatial Measurement Tool
+     * iPhone Visual SLAM with Overhauled Multi-View Depth Triangulation
+     * Version: v2026.10.27-1650
      */
+    const APP_BUILD_VERSION = "v2026.10.27-1650";
 
     const state = {
       isTracking: false,
@@ -531,7 +542,7 @@
     const btnMeasureCamPt = document.getElementById('btn-measure-cam-pt');
     const btnMeasureClear = document.getElementById('btn-measure-clear');
     const measureListContainer = document.getElementById('measure-list-container');
-    const btnClearAllMeasures = document.getElementById('btnClearAllMeasures') || document.getElementById('btn-clear-all-measures');
+    const btnClearAllMeasures = document.getElementById('btn-clear-all-measures');
     
     const btnInfo = document.getElementById('btn-info');
     const modalInfo = document.getElementById('modal-info');
@@ -579,6 +590,7 @@
     // 1. INITIALIZATION & LIFECYCLE
     // ==========================================
     window.addEventListener('DOMContentLoaded', async () => {
+      document.getElementById('app-build-ver').textContent = APP_BUILD_VERSION;
       initThreeJS();
       resizeCanvases();
       window.addEventListener('resize', resizeCanvases);
@@ -673,9 +685,7 @@
       btnMeasureMode.addEventListener('click', toggleMeasureMode);
       btnMeasureCamPt.addEventListener('click', addCurrentPositionAsMeasurePoint);
       btnMeasureClear.addEventListener('click', clearCurrentMeasurement);
-      if (btnClearAllMeasures) {
-        btnClearAllMeasures.addEventListener('click', clearAllMeasurements);
-      }
+      btnClearAllMeasures.addEventListener('click', clearAllMeasurements);
 
       btnToggleTrajWin.addEventListener('click', toggleTrajectoryWindow);
       btnTrajClose.addEventListener('click', toggleTrajectoryWindow);
@@ -740,7 +750,7 @@
         const tapDistance = Math.hypot(previousTouchX - touchStartPos.x, previousTouchY - touchStartPos.y);
 
         // Tap detected (quick touch without large drag)
-        if (touchDuration < 300 && tapDistance < 10) {
+        if (touchDuration < 320 && tapDistance < 12) {
           handle3DTapForMeasurement(touchStartPos.x, touchStartPos.y);
         }
         is3DTouchDragging = false;
@@ -854,7 +864,6 @@
         measureActivePanel.classList.remove('hidden');
         measureInstructionsBadge.classList.remove('hidden');
 
-        // Automatically switch to 3D map if on camera view for easier point tapping
         if (state.activeMainView === 'camera') {
           toggleMainView();
         }
@@ -876,7 +885,7 @@
 
       // Find closest triangulated 3D point to the tapped ray
       let closestPoint = null;
-      let minRayDistance = 0.25; // Hit tolerance in meters
+      let minRayDistance = 0.35; // Hit tolerance in meters
 
       state.triangulatedMapPoints.forEach(p => {
         const distToRay = raycaster.ray.distanceToPoint(p.position);
@@ -902,23 +911,20 @@
         measureStepText.textContent = "終点待ち";
         measureDistResult.textContent = "-- cm";
 
-        // Place temporary pulse marker at Start
         createMeasurePointMarker(state.measureStartPoint, 0x38bdf8);
       } else {
         state.measureEndPoint = vec3.clone();
         createMeasurePointMarker(state.measureEndPoint, 0xf59e0b);
 
-        // Compute 3D Distance
+        // Compute 3D Distance in meters
         const dist = state.measureStartPoint.distanceTo(state.measureEndPoint);
         const distCm = (dist * 100).toFixed(1);
         const distM = dist.toFixed(3);
         measureDistResult.textContent = dist < 1.0 ? `${distCm} cm` : `${distM} m`;
         measureStepText.textContent = "計測完了";
 
-        // Create 3D Measurement Guide Line with floating text badge
         create3DMeasurementVisual(state.measureStartPoint, state.measureEndPoint, dist);
 
-        // Save into Measurement records
         const record = {
           id: Date.now(),
           p1: state.measureStartPoint.clone(),
@@ -929,7 +935,6 @@
         state.measureRecords.push(record);
         updateMeasurementListUI();
 
-        // Reset for next measurement
         state.measureStartPoint = null;
         state.measureEndPoint = null;
       }
@@ -944,13 +949,11 @@
     }
 
     function create3DMeasurementVisual(p1, p2, dist) {
-      // 3D Line
       const lineGeo = new THREE.BufferGeometry().setFromPoints([p1, p2]);
       const lineMat = new THREE.LineBasicMaterial({ color: 0xf59e0b, linewidth: 3 });
       const line = new THREE.Line(lineGeo, lineMat);
       measurementGroup.add(line);
 
-      // Floating Distance Label (Sprite)
       const midPoint = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
       const distStr = dist < 1.0 ? `${(dist * 100).toFixed(1)}cm` : `${dist.toFixed(2)}m`;
       const labelSprite = makeTextSprite(distStr);
@@ -1017,7 +1020,7 @@
     }
 
     // ==========================================
-    // 4. SLAM ENGINE & RAY-RAY TRIANGULATION
+    // 4. OVERHAULED SLAM & RIGOROUS DEPTH TRIANGULATION
     // ==========================================
     function toggleSLAM() {
       ensureVideoPlaying();
@@ -1111,7 +1114,6 @@
 
               if (bright < 2 && dark < 2) continue;
 
-              // Structure Tensor
               let Ixx = 0, Iyy = 0, Ixy = 0;
               for (let dy = -1; dy <= 1; dy++) {
                 for (let dx = -1; dx <= 1; dx++) {
@@ -1156,11 +1158,13 @@
     }
 
     /**
-     * CONVERT 2D IMAGE PIXEL TO NORMALIZED 3D CAMERA RAY IN WORLD SPACE
-     * Coordinate Mapping: +X is Right, +Y is UP (inverted from image y), -Z is Forward
+     * ACCURATE PINHOLE CAMERA PROJECTION
+     * iPhone horizontal Field Of View ≈ 68 degrees (focal ≈ width / (2 * tan(34°)))
      */
     function getNormalizedRayInWorld(px, py, width, height, pose) {
-      const focal = width * 1.05;
+      const hFovRad = 68 * (Math.PI / 180);
+      const focal = (width * 0.5) / Math.tan(hFovRad * 0.5);
+
       const rayCam = new THREE.Vector3(
         (px - width * 0.5) / focal,
         -(py - height * 0.5) / focal, // Y-axis inverted for Three.js (+Y is UP)
@@ -1178,31 +1182,34 @@
     }
 
     /**
-     * GEOMETRIC RAY-RAY INTERSECTION TRIANGULATION
+     * ROBUST MIDPOINT 3D TRIANGULATION
+     * Solves 2x2 linear system for closest approach between 2 rays with outlier rejection
      */
     function triangulateTwoRays(orig0, ray0, orig1, ray1) {
       const w0 = new THREE.Vector3().subVectors(orig0, orig1);
-      const a = ray0.dot(ray0); // 1.0
+      const a = ray0.dot(ray0); // 1.0 (unit vector)
       const b = ray0.dot(ray1);
-      const c = ray1.dot(ray1); // 1.0
+      const c = ray1.dot(ray1); // 1.0 (unit vector)
       const d = ray0.dot(w0);
       const e = ray1.dot(w0);
 
-      const denom = a * c - b * b;
-      if (Math.abs(denom) < 1e-4) return null;
+      const denom = a * c - b * b; // 1 - (ray0 . ray1)^2 = sin^2(theta)
+      // Reject parallel or almost collinear rays (parallax angle < 4.0 degrees)
+      if (Math.abs(denom) < 0.005) return null;
 
       const s = (b * e - c * d) / denom;
       const t = (a * e - b * d) / denom;
 
-      // Positive depth check
-      if (s < 0.2 || t < 0.2) return null;
-      if (s > 10.0 || t > 10.0) return null;
+      // Depth sanity checks: must be in front of both cameras and within realistic room scale
+      if (s < 0.3 || t < 0.3) return null;
+      if (s > 6.0 || t > 6.0) return null;
 
       const p0 = new THREE.Vector3().copy(orig0).addScaledVector(ray0, s);
       const p1 = new THREE.Vector3().copy(orig1).addScaledVector(ray1, t);
       
+      // Strict spatial ray miss distance (residual must be < 5cm to eliminate false depths)
       const distanceResidual = p0.distanceTo(p1);
-      if (distanceResidual > 0.45) return null;
+      if (distanceResidual > 0.05) return null;
 
       return new THREE.Vector3().addVectors(p0, p1).multiplyScalar(0.5);
     }
@@ -1278,7 +1285,6 @@
         feat.y += feat.dy;
         feat.age++;
 
-        // Keep fresh sampled RGB color
         const curPx = Math.min(width - 1, Math.max(0, Math.floor(feat.x)));
         const curPy = Math.min(height - 1, Math.max(0, Math.floor(feat.y)));
         const curIdx = (curPy * width + curPx) * 4;
@@ -1292,18 +1298,18 @@
         const residualY = feat.dy - expectedDyRot;
         residualTranslations.push({ rx: residualX, ry: residualY });
 
-        // 3. Multi-View Ray Triangulation
+        // 3. Multi-View Triangulation: Require at least 8cm of baseline and 4° parallax
         const baseline = feat.birthOrigin.distanceTo(currentCamOrigin);
-        if (!feat.isTriangulated && baseline >= 0.05 && feat.age > 4) {
+        if (!feat.isTriangulated && baseline >= 0.08 && feat.age > 5) {
           const currentRay = getNormalizedRayInWorld(feat.x, feat.y, width, height, state.pose);
           const angleDiff = feat.birthRay.angleTo(currentRay);
 
-          if (angleDiff > 0.04) {
+          if (angleDiff >= (4.0 * Math.PI / 180)) {
             const triangulatedPoint = triangulateTwoRays(feat.birthOrigin, feat.birthRay, currentCamOrigin, currentRay);
             if (triangulatedPoint) {
               feat.isTriangulated = true;
 
-              const exists = state.triangulatedMapPoints.some(p => p.position.distanceTo(triangulatedPoint) < 0.08);
+              const exists = state.triangulatedMapPoints.some(p => p.position.distanceTo(triangulatedPoint) < 0.06);
               if (!exists && state.triangulatedMapPoints.length < 3500) {
                 state.triangulatedMapPoints.push({
                   position: triangulatedPoint,
@@ -1599,6 +1605,7 @@
 
     function exportTrajectoryJSON() {
       const exportObj = {
+        version: APP_BUILD_VERSION,
         trajectory: state.trajectory3D,
         measurements: state.measureRecords.map(m => ({ id: m.id, distanceMeter: m.dist, p1: m.p1, p2: m.p2 })),
         triangulatedMapPoints: state.triangulatedMapPoints.map(p => ({
@@ -1660,7 +1667,6 @@
       dirLight.position.set(5, 10, 7);
       scene.add(dirLight);
 
-      // Floor grid located at Y=-0.8m (ground level)
       const grid = new THREE.GridHelper(20, 20, 0x38bdf8, 0x1e293b);
       grid.position.y = -0.8;
       scene.add(grid);

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>GPS-less Visual SLAM Photo Map (v2026.11.12-1754)</title>
+  <title>GPS-less Visual SLAM 3-Mode Ortho Map (v2026.11.12-1803)</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Three.js for 3D Spatial Rendering -->
@@ -23,14 +23,14 @@
     }
 
     .glass-panel {
-      background: rgba(15, 23, 42, 0.86);
+      background: rgba(15, 23, 42, 0.88);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
       border: 1px solid rgba(255, 255, 255, 0.12);
     }
 
     .glass-card {
-      background: rgba(30, 41, 59, 0.72);
+      background: rgba(30, 41, 59, 0.74);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
       border: 1px solid rgba(255, 255, 255, 0.08);
@@ -49,8 +49,8 @@
     }
 
     .pip-container {
-      width: 108px;
-      height: 148px;
+      width: 104px;
+      height: 142px;
       border-radius: 18px;
       overflow: hidden;
       box-shadow: 0 12px 32px rgba(0, 0, 0, 0.85), 0 0 0 2px rgba(56, 189, 248, 0.7);
@@ -72,30 +72,34 @@
 </head>
 <body class="relative w-screen h-screen overflow-hidden flex flex-col bg-slate-950 text-slate-100 select-none">
 
-  <!-- TOP HEADER: STATUS, PERSISTENT BUILD VERSION & VIEW SWITCHER -->
-  <header class="absolute top-0 left-0 right-0 z-40 pt-10 pb-3 px-4 glass-panel border-b-0 rounded-b-3xl flex items-center justify-between shadow-2xl">
-    <div class="flex items-center space-x-2.5 min-w-0">
-      <div id="status-indicator" class="w-3 h-3 rounded-full bg-amber-500 status-pulse shrink-0"></div>
-      <div class="min-w-0">
-        <div class="flex items-center gap-1.5">
-          <span class="text-[11px] font-bold tracking-wider uppercase text-sky-400">Outdoor SLAM Map</span>
-          <span id="app-build-ver" class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-400/50">
-            v2026.11.12-1754
-          </span>
-        </div>
-        <div id="status-text" class="text-xs font-bold text-slate-100 mt-0.5 truncate">
-          カメラ待機中...
-        </div>
+  <!-- TOP HEADER: STATUS, PERSISTENT BUILD VERSION & 3-MODE SEGMENTED SWITCHER -->
+  <header class="absolute top-0 left-0 right-0 z-40 pt-10 pb-2.5 px-3.5 glass-panel border-b-0 rounded-b-3xl flex flex-col space-y-2 shadow-2xl">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center space-x-2 min-w-0">
+        <div id="status-indicator" class="w-2.5 h-2.5 rounded-full bg-amber-500 status-pulse shrink-0"></div>
+        <span class="text-[11px] font-bold tracking-wider uppercase text-sky-400 truncate">Visual SLAM Map</span>
+        <span id="app-build-ver" class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-400/50 shrink-0">
+          v2026.11.12-1803
+        </span>
+      </div>
+      <div id="status-text" class="text-[11px] font-bold text-slate-200 truncate max-w-[165px] text-right">
+        カメラ待機中...
       </div>
     </div>
 
-    <!-- Segmented Switcher: Camera / 2D Map -->
-    <div class="flex items-center bg-slate-900/90 p-1 rounded-full border border-white/15 shrink-0">
-      <button id="seg-btn-camera" class="px-3 py-1.5 rounded-full text-xs font-bold text-slate-300 hover:text-white transition-all">
-        <i class="fa-solid fa-camera mr-1"></i>カメラ
+    <!-- 3-Mode Segmented Switcher: カメラ / 3Dマップ / 2Dマップ -->
+    <div class="grid grid-cols-3 bg-slate-900/95 p-1 rounded-2xl border border-white/15 gap-1">
+      <button id="seg-btn-camera" class="py-1.5 px-2 rounded-xl text-xs font-bold bg-sky-500 text-white shadow transition-all flex items-center justify-center gap-1">
+        <i class="fa-solid fa-camera text-[11px]"></i>
+        <span>カメラ</span>
       </button>
-      <button id="seg-btn-map" class="px-3 py-1.5 rounded-full text-xs font-bold bg-sky-500 text-white shadow transition-all">
-        <i class="fa-solid fa-map-location-dot mr-1"></i>2Dマップ
+      <button id="seg-btn-3d" class="py-1.5 px-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white transition-all flex items-center justify-center gap-1">
+        <i class="fa-solid fa-cube text-[11px]"></i>
+        <span>3Dマップ</span>
+      </button>
+      <button id="seg-btn-2d" class="py-1.5 px-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white transition-all flex items-center justify-center gap-1">
+        <i class="fa-solid fa-map text-[11px]"></i>
+        <span>2Dマップ</span>
       </button>
     </div>
   </header>
@@ -103,21 +107,25 @@
   <!-- MAIN VIEWPORTS CONTAINER -->
   <main id="viewport-root" class="relative w-full h-full flex-1 overflow-hidden">
 
-    <!-- 1. LIVE CAMERA VIEWPORT + 2D FEATURE POINTS OVERLAY -->
-    <div id="camera-viewport" class="absolute inset-0 w-full h-full z-0 opacity-0 pointer-events-none transition-opacity duration-300">
+    <!-- 1. CAMERA VIEWPORT + COLOR-EDGE FEATURE POINTS OVERLAY -->
+    <div id="camera-viewport" class="absolute inset-0 w-full h-full z-10 opacity-100 pointer-events-auto transition-opacity duration-300">
       <video id="camera-feed" playsinline webkit-playsinline autoplay muted class="absolute inset-0 w-full h-full object-cover"></video>
-      <!-- 2D Feature Points, Motion Trails & PnP Reprojection Canvas -->
+      <!-- Color-Edge Shi-Tomasi Keypoints, Trails & PnP Reprojection Overlay -->
       <canvas id="tracking-canvas" class="absolute inset-0 w-full h-full z-20 pointer-events-none"></canvas>
 
-      <!-- Active Feature Telemetry Pill (Top Left in Camera Mode) -->
-      <div class="absolute top-28 left-4 z-30 pointer-events-none flex flex-col space-y-1.5">
+      <!-- Active Color-Edge Telemetry Pill -->
+      <div class="absolute top-32 left-3.5 z-30 pointer-events-none flex flex-col space-y-1.5">
         <div class="px-3 py-1 rounded-full text-[10px] font-mono bg-black/75 backdrop-blur-md border border-emerald-400/40 text-emerald-200 w-max flex items-center gap-1.5 shadow-lg">
           <i class="fa-solid fa-crosshairs text-emerald-400"></i>
-          <span>追跡特徴点: <strong id="cam-stat-features" class="text-white">0</strong> 点 (3D確定: <strong id="cam-stat-3d" class="text-emerald-300">0</strong>)</span>
+          <span>色エッジ特徴点: <strong id="cam-stat-features" class="text-white">0</strong> (3D確定: <strong id="cam-stat-3d" class="text-emerald-300">0</strong>)</span>
+        </div>
+        <div class="px-3 py-1 rounded-full text-[10px] font-mono bg-black/75 backdrop-blur-md border border-sky-400/40 text-sky-200 w-max flex items-center gap-1.5 shadow-lg">
+          <i class="fa-solid fa-images text-sky-400"></i>
+          <span>オルソ用キーフレーム: <strong id="cam-stat-kf" class="text-white">0</strong> 枚</span>
         </div>
         <div class="flex items-center space-x-2 text-[9px] bg-black/70 px-2.5 py-1 rounded-full border border-white/10 w-max text-slate-200">
           <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>3D確定点</span>
-          <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-cyan-400 inline-block"></span>追跡アンカー</span>
+          <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-cyan-400 inline-block"></span>色エッジ点</span>
           <span class="flex items-center gap-1"><span class="w-2 h-0.5 bg-amber-400 inline-block"></span>再投影誤差</span>
         </div>
       </div>
@@ -130,161 +138,154 @@
       </div>
     </div>
 
-    <!-- 2. TOP-DOWN 2D / 3D SPATIAL CURRENT LOCATION MAP VIEWPORT -->
-    <div id="three-viewport" class="absolute inset-0 w-full h-full z-10 opacity-100 pointer-events-auto transition-opacity duration-300">
+    <!-- 2. THREE.JS 3D SPATIAL RECONSTRUCTION VIEWPORT -->
+    <div id="three-viewport" class="absolute inset-0 w-full h-full z-0 opacity-0 pointer-events-none transition-opacity duration-300">
       <div id="three-canvas-container" class="w-full h-full"></div>
 
-      <!-- Map View Controls & Legend (Top Left) -->
-      <div class="absolute top-28 left-4 z-20 flex flex-col space-y-2 pointer-events-auto">
-        <!-- Quick Perspective Toggle: Top-Down 2D vs 3D Tilted -->
-        <div class="flex items-center space-x-1.5">
-          <button id="btn-toggle-perspective" class="px-3 py-1.5 rounded-full text-[11px] font-bold bg-indigo-600/85 hover:bg-indigo-500 text-white border border-indigo-300/50 shadow-lg backdrop-blur-md flex items-center gap-1.5 active:scale-95 transition">
-            <i id="perspective-icon" class="fa-solid fa-compass text-xs text-sky-200"></i>
-            <span id="perspective-label">視点: 真上 (2D)</span>
-          </button>
-        </div>
-
-        <span class="text-[10px] font-medium text-slate-200 bg-black/75 px-3 py-1 rounded-full backdrop-blur-md border border-white/10 w-max pointer-events-none">
-          <i class="fa-solid fa-hand-pointer text-sky-400 mr-1"></i> パン・回転 / 2本指ズーム (1マス=5m)
+      <!-- 3D Map Legend & Controls (Top Left) -->
+      <div class="absolute top-32 left-3.5 z-20 pointer-events-none flex flex-col space-y-1.5">
+        <span class="text-[10px] font-medium text-slate-200 bg-black/75 px-3 py-1 rounded-full backdrop-blur-md border border-white/10 w-max">
+          <i class="fa-solid fa-hand-pointer text-sky-400 mr-1"></i> ドラッグで回転 / 2本指ズーム (1マス=5m)
         </span>
-        <div class="flex items-center space-x-2 text-[9px] bg-black/70 px-2.5 py-1 rounded-full border border-white/10 w-max pointer-events-none">
+        <div class="flex items-center space-x-2 text-[9px] bg-black/70 px-2.5 py-1 rounded-full border border-white/10 w-max">
           <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-sky-400 inline-block"></span>開始</span>
           <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>現在地</span>
-          <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-400 inline-block"></span>傾き</span>
-          <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>実写投影</span>
+          <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-400 inline-block"></span>傾きリング</span>
         </div>
       </div>
     </div>
 
-    <!-- TAPPABLE PICTURE-IN-PICTURE (PiP) THUMBNAIL WINDOW -->
-    <div id="pip-window" class="pip-container absolute top-28 right-4 z-30 cursor-pointer glass-panel flex flex-col items-center justify-center">
+    <!-- 3. DEDICATED 2D TOP-DOWN ORTHOMOSAIC VIEWER & PNG EXPORT VIEWPORT -->
+    <div id="ortho-2d-viewport" class="absolute inset-0 w-full h-full z-0 opacity-0 pointer-events-none transition-opacity duration-300 bg-slate-950 flex flex-col pt-28 pb-48 px-3.5">
+      <div class="glass-panel flex-1 rounded-3xl border border-sky-400/35 p-3 flex flex-col justify-between shadow-2xl overflow-hidden">
+        <!-- Top Info & Regenerate Button -->
+        <div class="flex items-center justify-between gap-2 pb-2 border-b border-white/10 shrink-0">
+          <div class="min-w-0">
+            <div class="text-xs font-bold text-white flex items-center gap-1.5">
+              <i class="fa-solid fa-satellite text-sky-400"></i> 真上オルソ2Dマップ (1200×1200)
+            </div>
+            <div id="ortho-status-desc" class="text-[10px] text-slate-300 font-mono truncate">
+              キーフレームから真上視点を再構成します
+            </div>
+          </div>
+          <button id="btn-rebuild-ortho" class="px-3 py-1.5 rounded-xl bg-indigo-500/30 hover:bg-indigo-500/45 border border-indigo-400/50 text-indigo-100 text-[11px] font-bold flex items-center gap-1 shrink-0 active:scale-95 transition">
+            <i class="fa-solid fa-arrows-rotate"></i> オルソ再生成
+          </button>
+        </div>
+
+        <!-- High-Resolution 2D Orthomosaic Canvas Preview -->
+        <div class="relative flex-1 my-2 bg-slate-900/90 rounded-2xl border border-white/10 overflow-hidden flex items-center justify-center">
+          <canvas id="export-map-canvas" width="1200" height="1200" class="max-w-full max-h-full aspect-square object-contain"></canvas>
+          <div id="ortho-rendering-badge" class="hidden absolute inset-0 bg-black/65 backdrop-blur-sm flex flex-col items-center justify-center text-sky-300 gap-2">
+            <i class="fa-solid fa-spinner fa-spin text-2xl"></i>
+            <span class="text-xs font-bold">真上オルソ画像を生成中...</span>
+          </div>
+        </div>
+
+        <!-- Layer Toggles & Save PNG Action -->
+        <div class="space-y-2 shrink-0">
+          <div class="grid grid-cols-3 gap-1.5 text-[11px]">
+            <label class="glass-card py-1.5 px-2 rounded-xl flex items-center justify-between cursor-pointer">
+              <span class="text-slate-200 font-semibold">オルソ写真</span>
+              <input id="chk-export-photo" type="checkbox" checked class="w-4 h-4 accent-emerald-400 rounded">
+            </label>
+            <label class="glass-card py-1.5 px-2 rounded-xl flex items-center justify-between cursor-pointer">
+              <span class="text-slate-200 font-semibold">3D点群</span>
+              <input id="chk-export-points" type="checkbox" checked class="w-4 h-4 accent-sky-400 rounded">
+            </label>
+            <label class="glass-card py-1.5 px-2 rounded-xl flex items-center justify-between cursor-pointer">
+              <span class="text-slate-200 font-semibold">移動軌跡</span>
+              <input id="chk-export-traj" type="checkbox" checked class="w-4 h-4 accent-fuchsia-400 rounded">
+            </label>
+          </div>
+
+          <button id="btn-download-map-png" class="w-full py-2.5 rounded-2xl bg-sky-500 hover:bg-sky-400 text-white font-bold text-xs shadow-lg shadow-sky-500/30 active:scale-98 transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-download"></i> 2Dオルソマップ画像を保存 (PNG)
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAPPABLE PICTURE-IN-PICTURE (PiP) WINDOW (Shown in Camera & 3D Map modes) -->
+    <div id="pip-window" class="pip-container absolute top-32 right-3.5 z-30 cursor-pointer glass-panel flex flex-col items-center justify-center">
       <div id="pip-content" class="relative w-full h-full overflow-hidden flex items-center justify-center"></div>
       <span id="pip-label" class="absolute bottom-1.5 left-1.5 right-1.5 text-center z-40 px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-black/80 text-sky-300 border border-sky-400/30 pointer-events-none">
-        カメラ映像
+        3Dマップ
       </span>
     </div>
 
   </main>
 
   <!-- BOTTOM CURRENT LOCATION & TILT TELEMETRY CARD -->
-  <section class="absolute bottom-24 left-4 right-4 z-30 pointer-events-none">
-    <div class="glass-panel p-3 rounded-3xl pointer-events-auto shadow-2xl border border-white/15 space-y-2.5">
+  <section class="absolute bottom-20 left-3.5 right-3.5 z-30 pointer-events-none">
+    <div class="glass-panel p-2.5 rounded-3xl pointer-events-auto shadow-2xl border border-white/15 space-y-2">
 
       <div class="flex items-center justify-between px-1">
-        <span class="text-xs font-bold text-sky-300 flex items-center gap-1.5">
+        <span class="text-[11px] font-bold text-sky-300 flex items-center gap-1.5">
           <i class="fa-solid fa-location-crosshairs"></i> 現在地 (開始地点基準)
         </span>
-        <span class="text-xs text-slate-300 font-mono">
+        <span class="text-[11px] text-slate-300 font-mono">
           移動距離: <strong id="stat-dist" class="text-white">0.00m</strong>
         </span>
       </div>
 
       <!-- X, Y, Z Coordinates -->
-      <div class="grid grid-cols-3 gap-2 text-center font-mono">
-        <div class="glass-card py-2 px-1.5 rounded-2xl">
-          <div class="text-[10px] font-semibold text-slate-400">X (左右)</div>
-          <div id="pos-x" class="text-base font-extrabold text-sky-300 mt-0.5">0.00<span class="text-[10px] font-normal text-slate-400 ml-0.5">m</span></div>
+      <div class="grid grid-cols-3 gap-1.5 text-center font-mono">
+        <div class="glass-card py-1.5 px-1 rounded-2xl">
+          <div class="text-[9px] font-semibold text-slate-400">X (左右)</div>
+          <div id="pos-x" class="text-sm font-extrabold text-sky-300">0.00<span class="text-[9px] font-normal text-slate-400 ml-0.5">m</span></div>
         </div>
-        <div class="glass-card py-2 px-1.5 rounded-2xl">
-          <div class="text-[10px] font-semibold text-slate-400">Y (上下)</div>
-          <div id="pos-y" class="text-base font-extrabold text-emerald-300 mt-0.5">0.00<span class="text-[10px] font-normal text-slate-400 ml-0.5">m</span></div>
+        <div class="glass-card py-1.5 px-1 rounded-2xl">
+          <div class="text-[9px] font-semibold text-slate-400">Y (上下)</div>
+          <div id="pos-y" class="text-sm font-extrabold text-emerald-300">0.00<span class="text-[9px] font-normal text-slate-400 ml-0.5">m</span></div>
         </div>
-        <div class="glass-card py-2 px-1.5 rounded-2xl">
-          <div class="text-[10px] font-semibold text-slate-400">Z (前後)</div>
-          <div id="pos-z" class="text-base font-extrabold text-purple-300 mt-0.5">0.00<span class="text-[10px] font-normal text-slate-400 ml-0.5">m</span></div>
+        <div class="glass-card py-1.5 px-1 rounded-2xl">
+          <div class="text-[9px] font-semibold text-slate-400">Z (前後)</div>
+          <div id="pos-z" class="text-sm font-extrabold text-purple-300">0.00<span class="text-[9px] font-normal text-slate-400 ml-0.5">m</span></div>
         </div>
       </div>
 
       <!-- Yaw, Pitch, Roll Readout -->
-      <div class="grid grid-cols-3 gap-2 text-center font-mono text-[11px] text-slate-200">
-        <div class="bg-slate-900/75 py-1 rounded-xl border border-white/5">方位: <span id="ori-yaw" class="font-bold text-fuchsia-300">0.0°</span></div>
-        <div class="bg-slate-900/75 py-1 rounded-xl border border-white/5">上下: <span id="ori-pitch" class="font-bold text-amber-300">0.0°</span></div>
-        <div class="bg-slate-900/75 py-1 rounded-xl border border-white/5">左右: <span id="ori-roll" class="font-bold text-cyan-300">0.0°</span></div>
+      <div class="grid grid-cols-3 gap-1.5 text-center font-mono text-[10px] text-slate-200">
+        <div class="bg-slate-900/75 py-0.5 rounded-xl border border-white/5">方位: <span id="ori-yaw" class="font-bold text-fuchsia-300">0.0°</span></div>
+        <div class="bg-slate-900/75 py-0.5 rounded-xl border border-white/5">上下: <span id="ori-pitch" class="font-bold text-amber-300">0.0°</span></div>
+        <div class="bg-slate-900/75 py-0.5 rounded-xl border border-white/5">左右: <span id="ori-roll" class="font-bold text-cyan-300">0.0°</span></div>
       </div>
 
     </div>
   </section>
 
   <!-- STREAMLINED 3-BUTTON BOTTOM ACTION DOCK -->
-  <footer class="absolute bottom-0 left-0 right-0 z-40 pb-6 pt-3 px-4 glass-panel border-t-0 rounded-t-3xl grid grid-cols-3 gap-2.5 shadow-2xl">
+  <footer class="absolute bottom-0 left-0 right-0 z-40 pb-5 pt-2.5 px-3.5 glass-panel border-t-0 rounded-t-3xl grid grid-cols-3 gap-2 shadow-2xl">
     <!-- 1. Start Camera & Gyro -->
     <button id="btn-start-cam" class="py-2.5 px-2 rounded-2xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 flex items-center justify-center space-x-1.5 text-emerald-200 active:scale-95 transition">
-      <i class="fa-solid fa-video text-sm text-emerald-400"></i>
+      <i class="fa-solid fa-video text-xs text-emerald-400"></i>
       <span id="label-cam-btn" class="text-xs font-bold">カメラ起動</span>
     </button>
 
     <!-- 2. Reset Origin -->
     <button id="btn-reset-origin" class="py-2.5 px-2 rounded-2xl glass-button flex items-center justify-center space-x-1.5 text-rose-200 active:scale-95 transition">
-      <i class="fa-solid fa-rotate-left text-sm text-rose-400"></i>
+      <i class="fa-solid fa-rotate-left text-xs text-rose-400"></i>
       <span class="text-xs font-bold">原点リセット</span>
     </button>
 
-    <!-- 3. 2D Map Image Export Modal Trigger -->
+    <!-- 3. Switch to 2D Ortho Map & Generate -->
     <button id="btn-open-map-export" class="py-2.5 px-2 rounded-2xl bg-sky-500/25 hover:bg-sky-500/35 border border-sky-400/50 flex items-center justify-center space-x-1.5 text-sky-100 active:scale-95 transition">
-      <i class="fa-solid fa-image text-sm text-sky-300"></i>
-      <span class="text-xs font-bold">マップ画像出力</span>
+      <i class="fa-solid fa-map text-xs text-sky-300"></i>
+      <span class="text-xs font-bold">2Dオルソ表示</span>
     </button>
   </footer>
-
-  <!-- 2D TOP-DOWN PHOTOGRAPHIC MAP IMAGE PREVIEW & PNG EXPORT MODAL -->
-  <section id="map-export-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-lg flex items-center justify-center p-4 transition-opacity duration-300 opacity-0 pointer-events-none">
-    <div class="glass-panel w-full max-w-md rounded-3xl border border-sky-400/40 shadow-2xl p-4 space-y-3 max-h-[92vh] overflow-y-auto">
-      <div class="flex items-center justify-between border-b border-white/10 pb-2.5">
-        <div>
-          <h2 class="text-sm font-bold text-white flex items-center gap-2">
-            <i class="fa-solid fa-map text-sky-400"></i> 2D実写スキャンマップ出力
-          </h2>
-          <span class="text-[10px] text-slate-400 font-mono">ビルド: v2026.11.12-1754 | 1200×1200px PNG</span>
-        </div>
-        <button id="btn-close-map-modal" class="w-8 h-8 rounded-full glass-button flex items-center justify-center text-slate-300">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
-      </div>
-
-      <!-- High-Res 2D Map Preview Canvas -->
-      <div class="relative w-full aspect-square bg-slate-950 rounded-2xl border border-white/15 overflow-hidden shadow-inner flex items-center justify-center">
-        <canvas id="export-map-canvas" width="1200" height="1200" class="w-full h-full object-contain"></canvas>
-      </div>
-
-      <!-- Layer Toggles: Camera Photo Map, RGB Point Cloud, Trajectory -->
-      <div class="grid grid-cols-3 gap-1.5 text-[11px]">
-        <label class="glass-card p-2 rounded-2xl flex items-center justify-between cursor-pointer">
-          <span class="text-slate-200 font-semibold">実写映像</span>
-          <input id="chk-export-photo" type="checkbox" checked class="w-4 h-4 accent-emerald-400 rounded">
-        </label>
-        <label class="glass-card p-2 rounded-2xl flex items-center justify-between cursor-pointer">
-          <span class="text-slate-200 font-semibold">3D点群</span>
-          <input id="chk-export-points" type="checkbox" checked class="w-4 h-4 accent-sky-400 rounded">
-        </label>
-        <label class="glass-card p-2 rounded-2xl flex items-center justify-between cursor-pointer">
-          <span class="text-slate-200 font-semibold">移動軌跡</span>
-          <input id="chk-export-traj" type="checkbox" checked class="w-4 h-4 accent-fuchsia-400 rounded">
-        </label>
-      </div>
-
-      <div class="glass-card p-2.5 rounded-2xl flex items-center justify-between gap-3">
-        <span class="text-xs text-slate-300 shrink-0">3D点群サイズ</span>
-        <input id="slider-point-size" type="range" min="0.05" max="0.45" step="0.02" value="0.14" class="w-full accent-sky-400 bg-slate-800 rounded-lg h-1.5 cursor-pointer">
-        <span id="label-point-size" class="text-xs font-mono font-bold text-sky-300 w-9 text-right">0.14</span>
-      </div>
-
-      <!-- Primary PNG Image Save Button -->
-      <button id="btn-download-map-png" class="w-full py-3 rounded-2xl bg-sky-500 hover:bg-sky-400 text-white font-bold text-sm shadow-lg shadow-sky-500/30 active:scale-98 transition flex items-center justify-center gap-2">
-        <i class="fa-solid fa-download"></i> 2Dマップ画像を保存 (PNG)
-      </button>
-    </div>
-  </section>
 
   <!-- Offscreen Processing Canvas -->
   <canvas id="proc-canvas" class="hidden"></canvas>
 
   <script>
     /**
-     * GPS-less Outdoor Visual SLAM Current Location Map App
-     * Top-Down 2D Map Default View + Live Camera Feature Points Overlay
-     * Version: v2026.11.12-1754
+     * GPS-less Visual SLAM 3-Mode Current Location & Top-Down Orthomosaic Map App
+     * Modes: 'camera' | '3d' | '2d'
+     * Version: v2026.11.12-1803
      */
-    const APP_BUILD_VERSION = "v2026.11.12-1754";
+    const APP_BUILD_VERSION = "v2026.11.12-1803";
 
     // Pinhole Camera Intrinsics (iPhone Rear Wide ~68 deg horizontal FOV)
     const PROC_WIDTH = 240;
@@ -295,33 +296,27 @@
     const CY = PROC_HEIGHT * 0.5;
 
     // Outdoor Spatial Range Constants
-    const OUTDOOR_MAX_DEPTH = 35.0;     // Triangulate buildings/landmarks up to 35m
-    const OUTDOOR_INITIAL_PRIOR = 4.5;  // Initial depth prior for outdoor scenes
+    const OUTDOOR_MAX_DEPTH = 35.0;
+    const OUTDOOR_INITIAL_PRIOR = 4.5;
     const MAX_MAP_POINTS = 8000;
 
-    // Persistent 2D Photographic Orthomosaic Ground Canvas (2048x2048 px -> covers 80m x 80m @ ~25.6 px/m)
-    const ORTHO_RES = 2048;
-    const ORTHO_WORLD_SPAN_M = 80.0;
-    const ORTHO_PX_PER_M = ORTHO_RES / ORTHO_WORLD_SPAN_M;
-    const orthoCanvas = document.createElement('canvas');
-    orthoCanvas.width = ORTHO_RES;
-    orthoCanvas.height = ORTHO_RES;
-    const orthoCtx = orthoCanvas.getContext('2d');
+    // Captured Keyframes for On-Demand Nadir-Weighted Top-Down Orthomosaic Reconstruction
+    const ORTHO_KF_W = 160;
+    const ORTHO_KF_H = 120;
+    const ORTHO_FOCAL_PX = (ORTHO_KF_W * 0.5) / Math.tan((H_FOV_DEG * 0.5 * Math.PI) / 180.0);
+    const MAX_ORTHO_KEYFRAMES = 90;
 
-    // Offscreen low-res camera patch canvas for fast ground texture projection
-    const patchCanvas = document.createElement('canvas');
-    patchCanvas.width = 160;
-    patchCanvas.height = 120;
-    const patchCtx = patchCanvas.getContext('2d');
+    const kfCaptureCanvas = document.createElement('canvas');
+    kfCaptureCanvas.width = ORTHO_KF_W;
+    kfCaptureCanvas.height = ORTHO_KF_H;
+    const kfCaptureCtx = kfCaptureCanvas.getContext('2d', { willReadFrequently: true });
 
     const state = {
       isCameraReady: false,
       isTracking: false,
-      viewMode: 'map', // 'map' | 'camera'
-      isTopDown2D: true, // Default map perspective is straight top-down 2D bird's-eye view
+      viewMode: 'camera', // 'camera' | '3d' | '2d'
       hasSensorPermission: false,
       lastFrameTime: performance.now(),
-      lastOrthoStampTime: 0,
 
       // Current Camera Pose in Right-Handed Y-up World (+X: Right, +Y: Up, -Z: Forward)
       pose: {
@@ -333,7 +328,8 @@
       yawCalibrationQuat: null,
 
       lastPose: { x: 0, y: 0, z: 0 },
-      lastOrthoPose: { x: 999, z: 999, yaw: 999 },
+      lastOrthoCapturePose: { x: 999, z: 999, yaw: 999 },
+      lastOrthoCaptureTime: 0,
       totalDistance: 0,
       reprojectionRMSE: 0,
       keyframeCount: 0,
@@ -344,7 +340,7 @@
         initAlpha: null, initBeta: null, initGamma: null
       },
 
-      // Active 2D-3D Tracked Features & Persistent World Anchors
+      // Active 2D-3D Tracked Color-Edge Features & Persistent World Anchors
       activeAnchors: [],
       nextAnchorId: 1,
 
@@ -352,12 +348,9 @@
       triangulatedMapPoints: [],
       trajectory3D: [],
 
-      // Photo coverage bounds in world space (meters)
-      orthoBounds: {
-        hasData: false,
-        minX: 0, maxX: 0,
-        minZ: 0, maxZ: 0
-      },
+      // Stored Keyframe Snapshots for Top-Down 2D Orthomosaic Reconstruction
+      // Each: { camPos: THREE.Vector3, invRotMat: THREE.Matrix4, forwardDir: THREE.Vector3, rgba: Uint8ClampedArray }
+      orthoKeyframes: [],
 
       // Visualization Settings
       pointSize: 0.14
@@ -372,6 +365,7 @@
 
     const cameraViewport = document.getElementById('camera-viewport');
     const threeViewport = document.getElementById('three-viewport');
+    const ortho2DViewport = document.getElementById('ortho-2d-viewport');
     const pipWindow = document.getElementById('pip-window');
     const pipContent = document.getElementById('pip-content');
     const pipLabel = document.getElementById('pip-label');
@@ -381,13 +375,12 @@
     const statusText = document.getElementById('status-text');
 
     const segBtnCamera = document.getElementById('seg-btn-camera');
-    const segBtnMap = document.getElementById('seg-btn-map');
+    const segBtn3D = document.getElementById('seg-btn-3d');
+    const segBtn2D = document.getElementById('seg-btn-2d');
 
     const camStatFeatures = document.getElementById('cam-stat-features');
     const camStat3D = document.getElementById('cam-stat-3d');
-
-    const btnTogglePerspective = document.getElementById('btn-toggle-perspective');
-    const perspectiveLabel = document.getElementById('perspective-label');
+    const camStatKf = document.getElementById('cam-stat-kf');
 
     const posXElem = document.getElementById('pos-x');
     const posYElem = document.getElementById('pos-y');
@@ -402,16 +395,15 @@
     const btnResetOrigin = document.getElementById('btn-reset-origin');
     const btnOpenMapExport = document.getElementById('btn-open-map-export');
 
-    // 2D Map Image Export Modal
-    const mapExportModal = document.getElementById('map-export-modal');
-    const btnCloseMapModal = document.getElementById('btn-close-map-modal');
+    // 2D Orthomosaic View Elements
     const exportMapCanvas = document.getElementById('export-map-canvas');
     const exportMapCtx = exportMapCanvas.getContext('2d');
+    const orthoStatusDesc = document.getElementById('ortho-status-desc');
+    const orthoRenderingBadge = document.getElementById('ortho-rendering-badge');
+    const btnRebuildOrtho = document.getElementById('btn-rebuild-ortho');
     const chkExportPhoto = document.getElementById('chk-export-photo');
     const chkExportPoints = document.getElementById('chk-export-points');
     const chkExportTraj = document.getElementById('chk-export-traj');
-    const sliderPointSize = document.getElementById('slider-point-size');
-    const labelPointSize = document.getElementById('label-point-size');
     const btnDownloadMapPng = document.getElementById('btn-download-map-png');
 
     let prevGrayFrame = null;
@@ -422,14 +414,11 @@
     let startMarkerMesh, currentMarkerMesh;
     let pointCloudParticles, pointCloudGeometry;
     let cameraAvatarGroup, levelHorizonRingMesh;
-    let orthoGroundMesh, orthoGroundTexture;
 
-    // Map Orbit Camera Parameters (Default: Straight Top-Down 2D Bird's-Eye View)
+    // 3D Orbit Camera Parameters
     let is3DTouchDragging = false, previousTouchX = 0, previousTouchY = 0;
     let initialPinchDist = 0;
-    let orbitAzimuth = 0.0;
-    let orbitElevation = 1.565; // ~89.7 deg (straight overhead top-down 2D view)
-    let orbitDistance = 12.0;
+    let orbitAzimuth = 0.25, orbitElevation = 0.58, orbitDistance = 5.5;
 
     // ==========================================
     // 1. INITIALIZATION & CAMERA STREAMING
@@ -439,7 +428,6 @@
       procCanvas.width = PROC_WIDTH;
       procCanvas.height = PROC_HEIGHT;
 
-      clearOrthoCanvas();
       initThreeJS();
       resizeCanvases();
       window.addEventListener('resize', resizeCanvases);
@@ -450,13 +438,6 @@
       await startCameraAndSensors();
       requestAnimationFrame(mainLoop);
     });
-
-    function clearOrthoCanvas() {
-      orthoCtx.clearRect(0, 0, ORTHO_RES, ORTHO_RES);
-      state.orthoBounds = { hasData: false, minX: 0, maxX: 0, minZ: 0, maxZ: 0 };
-      state.lastOrthoPose = { x: 999, z: 999, yaw: 999 };
-      if (orthoGroundTexture) orthoGroundTexture.needsUpdate = true;
-    }
 
     function resizeCanvases() {
       const width = window.innerWidth;
@@ -503,7 +484,7 @@
         state.isCameraReady = true;
         state.isTracking = true;
         labelCamBtn.textContent = "稼働中";
-        setStatus('2D実写マップ生成中', 'bg-emerald-500');
+        setStatus('色エッジ特徴トラッキング中', 'bg-emerald-500');
       } catch (err) {
         console.warn("Camera gesture required:", err);
         setStatus('「カメラ起動」をタップ', 'bg-amber-500');
@@ -518,11 +499,11 @@
 
     function setStatus(text, colorClass) {
       statusText.textContent = text;
-      statusIndicator.className = `w-3 h-3 rounded-full status-pulse shrink-0 ${colorClass}`;
+      statusIndicator.className = `w-2.5 h-2.5 rounded-full status-pulse shrink-0 ${colorClass}`;
     }
 
     // ==========================================
-    // 2. SENSORS & UI EVENT HANDLERS
+    // 2. SENSORS & 3-MODE UI EVENT HANDLERS
     // ==========================================
     function setupEventListeners() {
       btnStartCam.addEventListener('click', async () => {
@@ -532,34 +513,28 @@
 
       btnResetOrigin.addEventListener('click', resetOriginPosition);
 
-      // Segmented View Switcher & PiP Tap
+      // 3-Mode Segmented Switcher
       segBtnCamera.addEventListener('click', () => setViewMode('camera'));
-      segBtnMap.addEventListener('click', () => setViewMode('map'));
+      segBtn3D.addEventListener('click', () => setViewMode('3d'));
+      segBtn2D.addEventListener('click', () => setViewMode('2d'));
+      btnOpenMapExport.addEventListener('click', () => setViewMode('2d'));
+
+      // PiP Quick Swap between Camera & 3D Map
       pipWindow.addEventListener('click', () => {
-        setViewMode(state.viewMode === 'camera' ? 'map' : 'camera');
+        setViewMode(state.viewMode === 'camera' ? '3d' : 'camera');
       });
 
-      // Top-Down 2D vs 3D Tilted Perspective Toggle
-      btnTogglePerspective.addEventListener('click', toggleMapPerspective);
-
-      // 2D Map Image Export Modal
-      btnOpenMapExport.addEventListener('click', openMapExportModal);
-      btnCloseMapModal.addEventListener('click', closeMapExportModal);
-      chkExportPhoto.addEventListener('change', render2DExportMapImage);
-      chkExportPoints.addEventListener('change', render2DExportMapImage);
-      chkExportTraj.addEventListener('change', render2DExportMapImage);
+      // 2D Orthomosaic Controls
+      btnRebuildOrtho.addEventListener('click', triggerOrthomosaicReconstruction);
+      chkExportPhoto.addEventListener('change', triggerOrthomosaicReconstruction);
+      chkExportPoints.addEventListener('change', triggerOrthomosaicReconstruction);
+      chkExportTraj.addEventListener('change', triggerOrthomosaicReconstruction);
       btnDownloadMapPng.addEventListener('click', download2DMapPNG);
-
-      sliderPointSize.addEventListener('input', (e) => {
-        state.pointSize = parseFloat(e.target.value);
-        labelPointSize.textContent = state.pointSize.toFixed(2);
-        if (pointCloudParticles) pointCloudParticles.material.size = state.pointSize;
-      });
 
       window.addEventListener('deviceorientation', handleOrientation, true);
       document.body.addEventListener('touchstart', ensureVideoPlaying, { passive: true });
 
-      // Map Viewport Touch Orbit / Rotate & Pinch Zoom
+      // 3D Map Viewport Touch Orbit & Pinch Zoom
       threeViewport.addEventListener('touchstart', (e) => {
         if (e.touches.length === 1) {
           is3DTouchDragging = true;
@@ -579,9 +554,7 @@
           const dx = e.touches[0].clientX - previousTouchX;
           const dy = e.touches[0].clientY - previousTouchY;
           orbitAzimuth -= dx * 0.008;
-          if (!state.isTopDown2D) {
-            orbitElevation = Math.max(0.12, Math.min(1.565, orbitElevation + dy * 0.008));
-          }
+          orbitElevation = Math.max(0.10, Math.min(1.55, orbitElevation + dy * 0.008));
           previousTouchX = e.touches[0].clientX;
           previousTouchY = e.touches[0].clientY;
         } else if (e.touches.length === 2 && initialPinchDist > 0) {
@@ -590,7 +563,7 @@
             e.touches[0].clientY - e.touches[1].clientY
           );
           const scale = initialPinchDist / Math.max(10, curDist);
-          orbitDistance = Math.max(2.0, Math.min(65.0, orbitDistance * scale));
+          orbitDistance = Math.max(1.5, Math.min(55.0, orbitDistance * scale));
           initialPinchDist = curDist;
         }
       }, { passive: true });
@@ -599,18 +572,6 @@
         is3DTouchDragging = false;
         initialPinchDist = 0;
       });
-    }
-
-    function toggleMapPerspective() {
-      state.isTopDown2D = !state.isTopDown2D;
-      if (state.isTopDown2D) {
-        orbitElevation = 1.565; // Straight overhead top-down 2D view
-        orbitAzimuth = 0.0;
-        perspectiveLabel.textContent = "視点: 真上 (2D)";
-      } else {
-        orbitElevation = 0.72;  // 3D oblique perspective
-        perspectiveLabel.textContent = "視点: 3D斜め";
-      }
     }
 
     async function requestSensorPermissions() {
@@ -667,7 +628,7 @@
       state.pose.pitch = e.beta - state.sensor.initBeta;
       state.pose.roll = -(e.gamma - state.sensor.initGamma);
 
-      // 2. Compute true 3D Quaternion for the Map Device Avatar & Ground Projection
+      // 2. Compute true 3D Quaternion for the 3D Map Device Avatar & Orthomosaic Camera Pose
       const rawQuat = computeDeviceQuaternion(e.alpha, e.beta, e.gamma);
       if (state.yawCalibrationQuat === null) {
         const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(rawQuat);
@@ -676,7 +637,6 @@
       }
       state.avatarQuaternion.copy(state.yawCalibrationQuat).multiply(rawQuat);
 
-      // Clean gravity-referenced tilt readout
       const tiltEuler = new THREE.Euler().setFromQuaternion(state.avatarQuaternion, 'YXZ');
       yawElem.textContent = `${THREE.MathUtils.radToDeg(tiltEuler.y).toFixed(1)}°`;
       pitchElem.textContent = `${THREE.MathUtils.radToDeg(tiltEuler.x).toFixed(1)}°`;
@@ -686,27 +646,38 @@
     function setViewMode(mode) {
       state.viewMode = mode;
       updateViewportLayout();
+      if (mode === '2d') {
+        triggerOrthomosaicReconstruction();
+      }
     }
 
     function updateViewportLayout() {
       ensureVideoPlaying();
 
+      const activeBtnClass = "py-1.5 px-2 rounded-xl text-xs font-bold bg-sky-500 text-white shadow transition-all flex items-center justify-center gap-1";
+      const inactiveBtnClass = "py-1.5 px-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white transition-all flex items-center justify-center gap-1";
+
+      segBtnCamera.className = state.viewMode === 'camera' ? activeBtnClass : inactiveBtnClass;
+      segBtn3D.className = state.viewMode === '3d' ? activeBtnClass : inactiveBtnClass;
+      segBtn2D.className = state.viewMode === '2d' ? activeBtnClass : inactiveBtnClass;
+
       if (state.viewMode === 'camera') {
         cameraViewport.className = "absolute inset-0 w-full h-full z-10 opacity-100 pointer-events-auto transition-opacity duration-300";
         threeViewport.className = "absolute inset-0 w-full h-full z-0 opacity-0 pointer-events-none transition-opacity duration-300";
+        ortho2DViewport.className = "absolute inset-0 w-full h-full z-0 opacity-0 pointer-events-none transition-opacity duration-300 bg-slate-950 flex flex-col pt-28 pb-48 px-3.5";
+        pipWindow.classList.remove('hidden');
 
         if (!cameraViewport.contains(videoElem)) {
           cameraViewport.insertBefore(videoElem, trackingCanvas);
         }
         pipContent.innerHTML = '';
         pipContent.appendChild(threeCanvasContainer);
-        pipLabel.textContent = "2Dマップ表示";
-
-        segBtnCamera.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-sky-500 text-white shadow transition-all";
-        segBtnMap.className = "px-3 py-1.5 rounded-full text-xs font-bold text-slate-300 hover:text-white transition-all";
-      } else {
+        pipLabel.textContent = "3Dマップ";
+      } else if (state.viewMode === '3d') {
         threeViewport.className = "absolute inset-0 w-full h-full z-10 opacity-100 pointer-events-auto transition-opacity duration-300";
         cameraViewport.className = "absolute inset-0 w-full h-full z-0 opacity-0 pointer-events-none transition-opacity duration-300";
+        ortho2DViewport.className = "absolute inset-0 w-full h-full z-0 opacity-0 pointer-events-none transition-opacity duration-300 bg-slate-950 flex flex-col pt-28 pb-48 px-3.5";
+        pipWindow.classList.remove('hidden');
 
         if (!threeViewport.contains(threeCanvasContainer)) {
           threeViewport.insertBefore(threeCanvasContainer, threeViewport.firstChild);
@@ -714,9 +685,16 @@
         pipContent.innerHTML = '';
         pipContent.appendChild(videoElem);
         pipLabel.textContent = "カメラ映像";
+      } else {
+        // '2d' Dedicated Top-Down Orthomosaic Viewer
+        ortho2DViewport.className = "absolute inset-0 w-full h-full z-10 opacity-100 pointer-events-auto transition-opacity duration-300 bg-slate-950 flex flex-col pt-28 pb-48 px-3.5";
+        cameraViewport.className = "absolute inset-0 w-full h-full z-0 opacity-0 pointer-events-none transition-opacity duration-300";
+        threeViewport.className = "absolute inset-0 w-full h-full z-0 opacity-0 pointer-events-none transition-opacity duration-300";
+        pipWindow.classList.add('hidden');
 
-        segBtnMap.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-sky-500 text-white shadow transition-all";
-        segBtnCamera.className = "px-3 py-1.5 rounded-full text-xs font-bold text-slate-300 hover:text-white transition-all";
+        if (!cameraViewport.contains(videoElem)) {
+          cameraViewport.insertBefore(videoElem, trackingCanvas);
+        }
       }
 
       setTimeout(() => {
@@ -726,89 +704,60 @@
     }
 
     // ==========================================
-    // 3. REAL-TIME CAMERA-TO-2D ORTHOMOSAIC GROUND PROJECTION
+    // 3. KEYFRAME CAPTURE FOR NADIR-WEIGHTED 2D ORTHOMOSAIC
     // ==========================================
-    function projectCameraFrameToOrthoMap(now) {
+    function maybeCaptureOrthoKeyframe(now) {
       if (!videoElem || videoElem.readyState < 2) return;
 
       const tiltEuler = new THREE.Euler().setFromQuaternion(state.avatarQuaternion, 'YXZ');
       const heading = tiltEuler.y;
       const pitch = tiltEuler.x;
 
-      const movedDist = Math.hypot(state.pose.x - state.lastOrthoPose.x, state.pose.z - state.lastOrthoPose.z);
-      const turnedDeg = Math.abs(THREE.MathUtils.radToDeg(heading - state.lastOrthoPose.yaw));
+      // Skip capturing if camera is pointing up into the sky (pitch > +12 deg)
+      if (pitch > 0.21) return;
 
-      if (now - state.lastOrthoStampTime < 140 && movedDist < 0.12 && turnedDeg < 5.0) {
+      const movedDist = Math.hypot(
+        state.pose.x - state.lastOrthoCapturePose.x,
+        state.pose.z - state.lastOrthoCapturePose.z
+      );
+      const turnedDeg = Math.abs(THREE.MathUtils.radToDeg(heading - state.lastOrthoCapturePose.yaw));
+
+      // Capture a keyframe whenever moving >= 0.35m or turning >= 12 deg (or initial frame)
+      if (state.orthoKeyframes.length > 0 && movedDist < 0.35 && turnedDeg < 12.0 && (now - state.lastOrthoCaptureTime) < 2500) {
         return;
       }
 
-      state.lastOrthoStampTime = now;
-      state.lastOrthoPose = { x: state.pose.x, z: state.pose.z, yaw: heading };
+      state.lastOrthoCapturePose = { x: state.pose.x, z: state.pose.z, yaw: heading };
+      state.lastOrthoCaptureTime = now;
 
-      patchCtx.clearRect(0, 0, patchCanvas.width, patchCanvas.height);
-      patchCtx.save();
-      patchCtx.drawImage(videoElem, 0, 0, patchCanvas.width, patchCanvas.height);
+      kfCaptureCtx.drawImage(videoElem, 0, 0, ORTHO_KF_W, ORTHO_KF_H);
+      const imgData = kfCaptureCtx.getImageData(0, 0, ORTHO_KF_W, ORTHO_KF_H);
 
-      patchCtx.globalCompositeOperation = 'destination-in';
-      const grad = patchCtx.createRadialGradient(
-        patchCanvas.width * 0.5, patchCanvas.height * 0.62, patchCanvas.width * 0.15,
-        patchCanvas.width * 0.5, patchCanvas.height * 0.55, patchCanvas.width * 0.52
-      );
-      grad.addColorStop(0, 'rgba(0, 0, 0, 0.85)');
-      grad.addColorStop(0.7, 'rgba(0, 0, 0, 0.55)');
-      grad.addColorStop(1, 'rgba(0, 0, 0, 0.0)');
-      patchCtx.fillStyle = grad;
-      patchCtx.fillRect(0, 0, patchCanvas.width, patchCanvas.height);
-      patchCtx.restore();
+      // Camera World Position (assuming handheld height ~1.35m above ground plane Y=0)
+      const camPos = new THREE.Vector3(state.pose.x, Math.max(0.75, 1.35 + state.pose.y), state.pose.z);
+      const rotMat = new THREE.Matrix4().makeRotationFromQuaternion(state.avatarQuaternion);
+      const invRotMat = rotMat.clone().invert();
+      const forwardDir = new THREE.Vector3(0, 0, -1).applyQuaternion(state.avatarQuaternion).normalize();
 
-      const camHeight = Math.max(0.8, 1.35 + state.pose.y);
-      const clampedPitch = Math.max(-1.2, Math.min(0.35, pitch));
-      const forwardOffset = Math.max(1.2, Math.min(5.5, camHeight / Math.tan(Math.max(0.22, -clampedPitch + 0.35))));
-      const patchWidthM = forwardOffset * 1.35;
-      const patchDepthM = forwardOffset * 1.45;
+      // Compute Nadir Alignment Score: 1.0 when camera looks straight down (0, -1, 0), lower when oblique
+      const nadirCos = Math.max(0.15, -forwardDir.y);
 
-      const fwdX = -Math.sin(heading);
-      const fwdZ = -Math.cos(heading);
-      const footprintWorldX = state.pose.x + fwdX * forwardOffset;
-      const footprintWorldZ = state.pose.z + fwdZ * forwardOffset;
+      state.orthoKeyframes.push({
+        camPos,
+        invRotMat,
+        forwardDir,
+        nadirCos,
+        rgba: imgData.data
+      });
 
-      const halfOrtho = ORTHO_RES * 0.5;
-      const canvasX = halfOrtho + footprintWorldX * ORTHO_PX_PER_M;
-      const canvasY = halfOrtho + footprintWorldZ * ORTHO_PX_PER_M;
-      const drawW = patchWidthM * ORTHO_PX_PER_M;
-      const drawH = patchDepthM * ORTHO_PX_PER_M;
-
-      if (canvasX < 0 || canvasX > ORTHO_RES || canvasY < 0 || canvasY > ORTHO_RES) return;
-
-      orthoCtx.save();
-      orthoCtx.translate(canvasX, canvasY);
-      orthoCtx.rotate(-heading);
-      orthoCtx.drawImage(patchCanvas, -drawW * 0.5, -drawH * 0.5, drawW, drawH);
-      orthoCtx.restore();
-
-      const radiusM = Math.max(patchWidthM, patchDepthM) * 0.6;
-      if (!state.orthoBounds.hasData) {
-        state.orthoBounds = {
-          hasData: true,
-          minX: footprintWorldX - radiusM,
-          maxX: footprintWorldX + radiusM,
-          minZ: footprintWorldZ - radiusM,
-          maxZ: footprintWorldZ + radiusM
-        };
-      } else {
-        state.orthoBounds.minX = Math.min(state.orthoBounds.minX, footprintWorldX - radiusM);
-        state.orthoBounds.maxX = Math.max(state.orthoBounds.maxX, footprintWorldX + radiusM);
-        state.orthoBounds.minZ = Math.min(state.orthoBounds.minZ, footprintWorldZ - radiusM);
-        state.orthoBounds.maxZ = Math.max(state.orthoBounds.maxZ, footprintWorldZ + radiusM);
-      }
-
-      if (orthoGroundTexture) {
-        orthoGroundTexture.needsUpdate = true;
+      if (state.orthoKeyframes.length > MAX_ORTHO_KEYFRAMES) {
+        // Retain frames with better nadir view or evenly spaced coverage
+        state.orthoKeyframes.shift();
       }
     }
 
     // ==========================================
-    // 4. OUTDOOR MAP-TO-FRAME PNP SLAM ALGORITHM
+    // 4. OUTDOOR MAP-TO-FRAME PNP SLAM (RGB COLOR-EDGE FEATURES)
     // ==========================================
     function mainLoop() {
       const now = performance.now();
@@ -819,19 +768,22 @@
         procCtx.drawImage(videoElem, 0, 0, PROC_WIDTH, PROC_HEIGHT);
         const frameData = procCtx.getImageData(0, 0, PROC_WIDTH, PROC_HEIGHT);
         runPnPVisualSLAM(frameData, dt);
-        projectCameraFrameToOrthoMap(now);
+        maybeCaptureOrthoKeyframe(now);
       }
 
       render2DCameraFeaturesOverlay();
-      update3DScene();
+      if (state.viewMode === '3d') {
+        update3DScene();
+      }
       requestAnimationFrame(mainLoop);
     }
 
-    function getLuminance(data, idx) {
-      return 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
-    }
-
-    function extractShiTomasiCorners(data, maxCorners = 54) {
+    /**
+     * Multi-Channel RGB Color-Edge Shi-Tomasi Corner Detector with Grid-NMS
+     * Computes structure tensor across all 3 RGB color channels (dR, dG, dB) plus chrominance
+     * contrast so boundaries between differently colored objects are strongly prioritized.
+     */
+    function extractColorEdgeCorners(data, maxCorners = 54) {
       const corners = [];
       const rows = 5;
       const cols = 6;
@@ -851,28 +803,51 @@
           for (let y = y0; y < y1; y += 3) {
             for (let x = x0; x < x1; x += 3) {
               let Ixx = 0, Iyy = 0, Ixy = 0;
+              let colorDiffSum = 0;
+
               for (let dy = -1; dy <= 1; dy++) {
                 for (let dx = -1; dx <= 1; dx++) {
-                  const gx = (getLuminance(data, ((y + dy) * PROC_WIDTH + (x + dx + 1)) * 4) -
-                              getLuminance(data, ((y + dy) * PROC_WIDTH + (x + dx - 1)) * 4)) * 0.5;
-                  const gy = (getLuminance(data, ((y + dy + 1) * PROC_WIDTH + (x + dx)) * 4) -
-                              getLuminance(data, ((y + dy - 1) * PROC_WIDTH + (x + dx)) * 4)) * 0.5;
-                  Ixx += gx * gx;
-                  Iyy += gy * gy;
-                  Ixy += gx * gy;
+                  const idxL = ((y + dy) * PROC_WIDTH + (x + dx - 1)) * 4;
+                  const idxR = ((y + dy) * PROC_WIDTH + (x + dx + 1)) * 4;
+                  const idxU = ((y + dy - 1) * PROC_WIDTH + (x + dx)) * 4;
+                  const idxD = ((y + dy + 1) * PROC_WIDTH + (x + dx)) * 4;
+
+                  // Multi-channel RGB spatial gradients (Di Zenzo color structure tensor)
+                  const gxR = (data[idxR] - data[idxL]) * 0.5;
+                  const gxG = (data[idxR + 1] - data[idxL + 1]) * 0.5;
+                  const gxB = (data[idxR + 2] - data[idxL + 2]) * 0.5;
+
+                  const gyR = (data[idxD] - data[idxU]) * 0.5;
+                  const gyG = (data[idxD + 1] - data[idxU + 1]) * 0.5;
+                  const gyB = (data[idxD + 2] - data[idxU + 2]) * 0.5;
+
+                  Ixx += gxR * gxR + gxG * gxG + gxB * gxB;
+                  Iyy += gyR * gyR + gyG * gyG + gyB * gyB;
+                  Ixy += gxR * gyR + gxG * gyG + gxB * gyB;
+
+                  // Chromaticity difference boost (R-G and B-G color contrast across edge)
+                  const dRG_x = (data[idxR] - data[idxR + 1]) - (data[idxL] - data[idxL + 1]);
+                  const dBG_x = (data[idxR + 2] - data[idxR + 1]) - (data[idxL + 2] - data[idxL + 1]);
+                  const dRG_y = (data[idxD] - data[idxD + 1]) - (data[idxU] - data[idxU + 1]);
+                  const dBG_y = (data[idxD + 2] - data[idxD + 1]) - (data[idxU] - data[idxU + 1]);
+                  colorDiffSum += Math.hypot(dRG_x, dBG_x, dRG_y, dBG_y);
                 }
               }
+
               const trace = Ixx + Iyy;
               const detTerm = Math.sqrt(Math.max(0, (Ixx - Iyy) * (Ixx - Iyy) + 4 * Ixy * Ixy));
               const lambdaMin = (trace - detTerm) * 0.5;
 
-              if (lambdaMin > 210 && lambdaMin > bestScore) {
+              // Combine RGB corner strength with chromatic color-boundary weight
+              const colorEdgeScore = lambdaMin * (1.0 + Math.min(2.5, colorDiffSum / 260.0));
+
+              if (lambdaMin > 420 && colorEdgeScore > bestScore) {
                 const cIdx = (y * PROC_WIDTH + x) * 4;
-                bestScore = lambdaMin;
+                bestScore = colorEdgeScore;
                 bestCorner = {
                   u: x,
                   v: y,
-                  score: lambdaMin,
+                  score: colorEdgeScore,
                   r: data[cIdx] / 255.0,
                   g: data[cIdx + 1] / 255.0,
                   b: data[cIdx + 2] / 255.0
@@ -1141,10 +1116,10 @@
             setStatus(`現在地更新中 (${state.triangulatedMapPoints.length}点)`, 'bg-emerald-500');
           }
         } else {
-          setStatus('周辺特徴を再探索中...', 'bg-amber-500');
+          setStatus('色エッジ特徴を再探索中...', 'bg-amber-500');
         }
       } else {
-        setStatus('周囲の空間をスキャン中...', 'bg-sky-500');
+        setStatus('色エッジ特徴点をスキャン中...', 'bg-sky-500');
       }
 
       const updatedCamOrigin = new THREE.Vector3(state.pose.x, state.pose.y, state.pose.z);
@@ -1181,7 +1156,7 @@
       const rotatedFromKF = Math.abs(state.pose.yaw - state.lastKeyframePose.yaw) + Math.abs(state.pose.pitch - state.lastKeyframePose.pitch);
 
       if (state.activeAnchors.length < 24 || movedFromKF > 0.45 || rotatedFromKF > 18.0) {
-        const freshCorners = extractShiTomasiCorners(data, 48);
+        const freshCorners = extractColorEdgeCorners(data, 48);
         let added = 0;
 
         for (let c of freshCorners) {
@@ -1266,29 +1241,29 @@
       }
 
       // Update Telemetry UI
-      posXElem.innerHTML = `${state.pose.x.toFixed(2)}<span class="text-[10px] font-normal text-slate-400 ml-0.5">m</span>`;
-      posYElem.innerHTML = `${state.pose.y.toFixed(2)}<span class="text-[10px] font-normal text-slate-400 ml-0.5">m</span>`;
-      posZElem.innerHTML = `${state.pose.z.toFixed(2)}<span class="text-[10px] font-normal text-slate-400 ml-0.5">m</span>`;
+      posXElem.innerHTML = `${state.pose.x.toFixed(2)}<span class="text-[9px] font-normal text-slate-400 ml-0.5">m</span>`;
+      posYElem.innerHTML = `${state.pose.y.toFixed(2)}<span class="text-[9px] font-normal text-slate-400 ml-0.5">m</span>`;
+      posZElem.innerHTML = `${state.pose.z.toFixed(2)}<span class="text-[9px] font-normal text-slate-400 ml-0.5">m</span>`;
       statDistElem.textContent = `${state.totalDistance.toFixed(2)}m`;
 
       prevGrayFrame = curGray;
     }
 
     // ==========================================
-    // 5. LIVE CAMERA MODE 2D FEATURE OVERLAY
+    // 5. CAMERA MODE COLOR-EDGE FEATURE OVERLAY
     // ==========================================
     function render2DCameraFeaturesOverlay() {
       const width = trackingCanvas.width;
       const height = trackingCanvas.height;
       trackingCtx.clearRect(0, 0, width, height);
 
-      // Update active feature counters
       let triCount = 0;
       for (let a of state.activeAnchors) {
         if (a.isTriangulated) triCount++;
       }
       if (camStatFeatures) camStatFeatures.textContent = state.activeAnchors.length;
       if (camStat3D) camStat3D.textContent = triCount;
+      if (camStatKf) camStatKf.textContent = state.orthoKeyframes.length;
 
       if (state.viewMode !== 'camera') return;
 
@@ -1323,7 +1298,7 @@
         trackingCtx.lineWidth = 1.5;
         trackingCtx.stroke();
 
-        // 3. Keypoint Circle (Emerald = 3D-triangulated anchor, Cyan = tracked anchor)
+        // 3. Color-Edge Keypoint Marker
         trackingCtx.beginPath();
         trackingCtx.arc(obsX, obsY, a.isTriangulated ? 5.5 : 4.2, 0, Math.PI * 2);
         trackingCtx.fillStyle = a.isTriangulated ? '#10b981' : '#22d3ee';
@@ -1335,7 +1310,7 @@
     }
 
     // ==========================================
-    // 6. THREE.JS TOP-DOWN 2D / 3D SPATIAL RENDERER
+    // 6. THREE.JS 3D SPATIAL RENDERER (3D MAP MODE)
     // ==========================================
     function initThreeJS() {
       const width = window.innerWidth;
@@ -1345,7 +1320,7 @@
       scene.background = new THREE.Color(0x050811);
 
       camera3D = new THREE.PerspectiveCamera(60, width / height, 0.1, 250);
-      camera3D.position.set(0, 12.0, 0.05);
+      camera3D.position.set(0, 3.5, 5.5);
 
       renderer3D = new THREE.WebGLRenderer({ antialias: true, alpha: false });
       renderer3D.setSize(width, height);
@@ -1357,24 +1332,7 @@
       dirLight.position.set(10, 25, 15);
       scene.add(dirLight);
 
-      // 1. Live Photographic Orthomosaic Ground Plane (80m x 80m)
-      orthoGroundTexture = new THREE.CanvasTexture(orthoCanvas);
-      orthoGroundTexture.minFilter = THREE.LinearFilter;
-      orthoGroundTexture.magFilter = THREE.LinearFilter;
-
-      const orthoPlaneGeo = new THREE.PlaneGeometry(ORTHO_WORLD_SPAN_M, ORTHO_WORLD_SPAN_M);
-      orthoPlaneGeo.rotateX(-Math.PI / 2);
-      const orthoPlaneMat = new THREE.MeshBasicMaterial({
-        map: orthoGroundTexture,
-        transparent: true,
-        opacity: 0.94,
-        depthWrite: false
-      });
-      orthoGroundMesh = new THREE.Mesh(orthoPlaneGeo, orthoPlaneMat);
-      orthoGroundMesh.position.y = -1.21;
-      scene.add(orthoGroundMesh);
-
-      // 2. 100m x 100m Outdoor Metric Grid (1 cell = 5.0m)
+      // 100m x 100m Outdoor Metric Grid (1 cell = 5.0m)
       const grid = new THREE.GridHelper(100, 20, 0x38bdf8, 0x1e293b);
       grid.position.y = -1.20;
       scene.add(grid);
@@ -1385,14 +1343,12 @@
       pillarsGroup = new THREE.Group();
       scene.add(pillarsGroup);
 
-      // Origin Start Marker (Sky Blue Pin)
       startMarkerMesh = new THREE.Mesh(
         new THREE.SphereGeometry(0.18, 16, 16),
         new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7 })
       );
       scene.add(startMarkerMesh);
 
-      // Current Position Marker (Rose Red Pin)
       currentMarkerMesh = new THREE.Mesh(
         new THREE.SphereGeometry(0.15, 16, 16),
         new THREE.MeshStandardMaterial({ color: 0xf43f5e, emissive: 0xe11d48 })
@@ -1424,7 +1380,6 @@
       phoneScreen.position.z = 0.02;
       cameraAvatarGroup.add(phoneScreen);
 
-      // Gold Attitude Ring attached to device
       const attitudeGeo = new THREE.RingGeometry(0.41, 0.45, 48);
       attitudeGeo.rotateX(-Math.PI / 2);
       const attitudeMesh = new THREE.Mesh(
@@ -1433,7 +1388,6 @@
       );
       cameraAvatarGroup.add(attitudeMesh);
 
-      // Camera Field-Of-View Frustum Cone pointing along -Z
       const frustumGeo = new THREE.ConeGeometry(0.60, 0.85, 4);
       frustumGeo.rotateX(-Math.PI / 2);
       const frustumMesh = new THREE.Mesh(
@@ -1443,13 +1397,11 @@
       frustumMesh.position.z = -0.42;
       cameraAvatarGroup.add(frustumMesh);
 
-      // Forward Heading Arrow (-Z)
       const arrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 0, 0), 0.95, 0x10b981, 0.22, 0.14);
       cameraAvatarGroup.add(arrow);
 
       scene.add(cameraAvatarGroup);
 
-      // Real-Color RGB 3D Point Cloud
       pointCloudGeometry = new THREE.BufferGeometry();
       const pointMat = new THREE.PointsMaterial({
         vertexColors: true,
@@ -1473,7 +1425,6 @@
       }
       currentMarkerMesh.position.set(state.pose.x, state.pose.y, state.pose.z);
 
-      // Update Volumetric Ribbon Trajectory & Floor Drop-Lines
       if (state.trajectory3D.length > 1) {
         while (trajectoryMeshGroup.children.length > 0) {
           const obj = trajectoryMeshGroup.children.pop();
@@ -1511,24 +1462,21 @@
         );
         trajectoryMeshGroup.add(tubeMesh);
 
-        if (!state.isTopDown2D) {
-          const step = Math.max(1, Math.floor(pts.length / 30));
-          for (let i = 0; i < pts.length; i += step) {
-            const p = pts[i];
-            const pGeo = new THREE.BufferGeometry().setFromPoints([
-              new THREE.Vector3(p.x, p.y, p.z),
-              new THREE.Vector3(p.x, -1.2, p.z)
-            ]);
-            const line = new THREE.Line(
-              pGeo,
-              new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.28 })
-            );
-            pillarsGroup.add(line);
-          }
+        const step = Math.max(1, Math.floor(pts.length / 30));
+        for (let i = 0; i < pts.length; i += step) {
+          const p = pts[i];
+          const pGeo = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(p.x, p.y, p.z),
+            new THREE.Vector3(p.x, -1.2, p.z)
+          ]);
+          const line = new THREE.Line(
+            pGeo,
+            new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.28 })
+          );
+          pillarsGroup.add(line);
         }
       }
 
-      // Combine Persistent Triangulated Points + Active 3D Anchors into RGB Point Cloud
       const totalPts = state.triangulatedMapPoints.length + state.activeAnchors.length;
       if (totalPts > 0) {
         const positions = new Float32Array(totalPts * 3);
@@ -1561,7 +1509,6 @@
         pointCloudGeometry.attributes.color.needsUpdate = true;
       }
 
-      // Orbit / Top-Down 2D Camera Follow
       const tx = state.pose.x;
       const ty = state.pose.y;
       const tz = state.pose.z;
@@ -1577,18 +1524,25 @@
     }
 
     // ==========================================
-    // 7. HIGH-RES 2D PHOTOGRAPHIC MAP PNG GENERATOR
+    // 7. ON-DEMAND NADIR-WEIGHTED 2D ORTHOMOSAIC RECONSTRUCTION
     // ==========================================
-    function openMapExportModal() {
-      mapExportModal.classList.remove('opacity-0', 'pointer-events-none');
-      render2DExportMapImage();
+    function triggerOrthomosaicReconstruction() {
+      orthoRenderingBadge.classList.remove('hidden');
+      // Yield 1 frame so spinner renders smoothly before inverse ray-casting
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          reconstructTopDownOrthomosaic();
+          orthoRenderingBadge.classList.add('hidden');
+        }, 20);
+      });
     }
 
-    function closeMapExportModal() {
-      mapExportModal.classList.add('opacity-0', 'pointer-events-none');
-    }
-
-    function render2DExportMapImage() {
+    /**
+     * Reconstructs a true top-down (bird's-eye) 2D Orthomosaic image by inverse ray-casting
+     * every ground pixel (X, Z, Y=0) back into captured keyframe cameras, weighting pixels
+     * viewed closest to vertical (nadir) and closest to optical center to eliminate distortion.
+     */
+    function reconstructTopDownOrthomosaic() {
       const W = exportMapCanvas.width;   // 1200
       const H = exportMapCanvas.height;  // 1200
       const ctx = exportMapCtx;
@@ -1597,24 +1551,24 @@
       ctx.fillStyle = '#070d19';
       ctx.fillRect(0, 0, W, H);
 
-      // 2. Compute Bounding Box of photo map, scanned points & trajectory (X, Z)
-      let minX = Math.min(0, state.pose.x);
-      let maxX = Math.max(0, state.pose.x);
-      let minZ = Math.min(0, state.pose.z);
-      let maxZ = Math.max(0, state.pose.z);
-
-      if (chkExportPhoto.checked && state.orthoBounds.hasData) {
-        minX = Math.min(minX, state.orthoBounds.minX);
-        maxX = Math.max(maxX, state.orthoBounds.maxX);
-        minZ = Math.min(minZ, state.orthoBounds.minZ);
-        maxZ = Math.max(maxZ, state.orthoBounds.maxZ);
-      }
+      // 2. Compute World Bounding Box (X, Z) from trajectory, keypoints & keyframe footprints
+      let minX = Math.min(-2.0, state.pose.x - 2.0);
+      let maxX = Math.max(2.0, state.pose.x + 2.0);
+      let minZ = Math.min(-2.0, state.pose.z - 2.0);
+      let maxZ = Math.max(2.0, state.pose.z + 2.0);
 
       state.trajectory3D.forEach(p => {
-        if (p.x < minX) minX = p.x;
-        if (p.x > maxX) maxX = p.x;
-        if (p.z < minZ) minZ = p.z;
-        if (p.z > maxZ) maxZ = p.z;
+        if (p.x - 2.5 < minX) minX = p.x - 2.5;
+        if (p.x + 2.5 > maxX) maxX = p.x + 2.5;
+        if (p.z - 2.5 < minZ) minZ = p.z - 2.5;
+        if (p.z + 2.5 > maxZ) maxZ = p.z + 2.5;
+      });
+
+      state.orthoKeyframes.forEach(kf => {
+        if (kf.camPos.x - 3.5 < minX) minX = kf.camPos.x - 3.5;
+        if (kf.camPos.x + 3.5 > maxX) maxX = kf.camPos.x + 3.5;
+        if (kf.camPos.z - 3.5 < minZ) minZ = kf.camPos.z - 3.5;
+        if (kf.camPos.z + 3.5 > maxZ) maxZ = kf.camPos.z + 3.5;
       });
 
       if (chkExportPoints.checked) {
@@ -1626,47 +1580,123 @@
         });
       }
 
-      const spanX = Math.max(4.0, maxX - minX);
-      const spanZ = Math.max(4.0, maxZ - minZ);
-      const maxSpan = Math.max(spanX, spanZ) * 1.2;
+      const spanX = Math.max(5.0, maxX - minX);
+      const spanZ = Math.max(5.0, maxZ - minZ);
+      const maxSpan = Math.max(spanX, spanZ) * 1.15;
       const centerX = (minX + maxX) * 0.5;
       const centerZ = (minZ + maxZ) * 0.5;
 
-      const usablePixels = W - 200;
-      const pxPerMeter = usablePixels / maxSpan;
+      const mapTop = 104;
+      const mapBottom = H - 104;
+      const mapHeightPx = mapBottom - mapTop;
+      const mapLeft = 48;
+      const mapRight = W - 48;
+      const mapWidthPx = mapRight - mapLeft;
 
+      const pxPerMeter = Math.min(mapWidthPx, mapHeightPx) / maxSpan;
       const worldToMapX = (wx) => (W * 0.5) + (wx - centerX) * pxPerMeter;
       const worldToMapY = (wz) => (H * 0.5) + (wz - centerZ) * pxPerMeter;
 
-      // 3. Composite Camera Photographic Orthomosaic Layer
-      if (chkExportPhoto.checked && state.orthoBounds.hasData) {
-        const halfOrtho = ORTHO_RES * 0.5;
-        const srcMinX = Math.max(0, halfOrtho + (centerX - maxSpan * 0.6) * ORTHO_PX_PER_M);
-        const srcMinY = Math.max(0, halfOrtho + (centerZ - maxSpan * 0.6) * ORTHO_PX_PER_M);
-        const srcMaxX = Math.min(ORTHO_RES, halfOrtho + (centerX + maxSpan * 0.6) * ORTHO_PX_PER_M);
-        const srcMaxY = Math.min(ORTHO_RES, halfOrtho + (centerZ + maxSpan * 0.6) * ORTHO_PX_PER_M);
+      // 3. Inverse Ray-to-Ground-Plane Nadir-Weighted Orthomosaic Synthesis
+      const kfs = state.orthoKeyframes;
+      if (chkExportPhoto.checked && kfs.length > 0) {
+        // Render at 480x480 orthomosaic grid and upscale cleanly into map viewport
+        const ORTHO_GRID = 480;
+        const orthoImg = ctx.createImageData(ORTHO_GRID, ORTHO_GRID);
+        const out = orthoImg.data;
 
-        const srcW = srcMaxX - srcMinX;
-        const srcH = srcMaxY - srcMinY;
+        const halfKF_W = ORTHO_KF_W * 0.5;
+        const halfKF_H = ORTHO_KF_H * 0.5;
+        const relVec = new THREE.Vector3();
 
-        if (srcW > 4 && srcH > 4) {
-          const worldLeft = (srcMinX - halfOrtho) / ORTHO_PX_PER_M;
-          const worldTop = (srcMinY - halfOrtho) / ORTHO_PX_PER_M;
-          const worldRight = (srcMaxX - halfOrtho) / ORTHO_PX_PER_M;
-          const worldBottom = (srcMaxY - halfOrtho) / ORTHO_PX_PER_M;
+        for (let gy = 0; gy < ORTHO_GRID; gy++) {
+          const mapY = mapTop + ((gy + 0.5) / ORTHO_GRID) * mapHeightPx;
+          const wz = centerZ + (mapY - H * 0.5) / pxPerMeter;
 
-          const dstX = worldToMapX(worldLeft);
-          const dstY = worldToMapY(worldTop);
-          const dstW = worldToMapX(worldRight) - dstX;
-          const dstH = worldToMapY(worldBottom) - dstY;
+          for (let gx = 0; gx < ORTHO_GRID; gx++) {
+            const mapX = mapLeft + ((gx + 0.5) / ORTHO_GRID) * mapWidthPx;
+            const wx = centerX + (mapX - W * 0.5) / pxPerMeter;
 
-          ctx.save();
-          ctx.beginPath();
-          ctx.rect(50, 105, W - 100, H - 210);
-          ctx.clip();
-          ctx.drawImage(orthoCanvas, srcMinX, srcMinY, srcW, srcH, dstX, dstY, dstW, dstH);
-          ctx.restore();
+            let sumR = 0, sumG = 0, sumB = 0, sumW = 0;
+
+            for (let k = 0; k < kfs.length; k++) {
+              const kf = kfs[k];
+              const dx = wx - kf.camPos.x;
+              const dy = 0.0 - kf.camPos.y; // Ground plane Y = 0
+              const dz = wz - kf.camPos.z;
+
+              const distSq = dx * dx + dy * dy + dz * dz;
+              if (distSq > 64.0) continue; // Ignore ground pixels > 8m away from camera
+
+              relVec.set(dx, dy, dz).applyMatrix4(kf.invRotMat);
+              const depth = -relVec.z;
+              if (depth < 0.35 || depth > 8.0) continue;
+
+              const u = halfKF_W + ORTHO_FOCAL_PX * (relVec.x / depth);
+              const v = halfKF_H - ORTHO_FOCAL_PX * (relVec.y / depth);
+
+              if (u < 2 || u >= ORTHO_KF_W - 2 || v < 2 || v >= ORTHO_KF_H - 2) continue;
+
+              // Center-of-lens radial weight (suppresses lens edge distortion)
+              const normU = (u - halfKF_W) / halfKF_W;
+              const normV = (v - halfKF_H) / halfKF_H;
+              const radialSq = normU * normU + normV * normV;
+              if (radialSq > 0.95) continue;
+
+              // Nadir (top-down vertical) priority weight: favors rays pointing straight down
+              const invDist = 1.0 / Math.sqrt(distSq);
+              const rayDownCos = Math.max(0.05, -dy * invDist);
+              const weight = (1.0 - radialSq * 0.85) * (rayDownCos * rayDownCos * kf.nadirCos) * invDist;
+
+              // Bilinear texture sample
+              const u0 = u | 0;
+              const v0 = v | 0;
+              const fu = u - u0;
+              const fv = v - v0;
+              const w00 = (1 - fu) * (1 - fv);
+              const w10 = fu * (1 - fv);
+              const w01 = (1 - fu) * fv;
+              const w11 = fu * fv;
+
+              const i00 = (v0 * ORTHO_KF_W + u0) * 4;
+              const i10 = i00 + 4;
+              const i01 = i00 + ORTHO_KF_W * 4;
+              const i11 = i01 + 4;
+
+              const r = kf.rgba[i00] * w00 + kf.rgba[i10] * w10 + kf.rgba[i01] * w01 + kf.rgba[i11] * w11;
+              const g = kf.rgba[i00 + 1] * w00 + kf.rgba[i10 + 1] * w10 + kf.rgba[i01 + 1] * w01 + kf.rgba[i11 + 1] * w11;
+              const b = kf.rgba[i00 + 2] * w00 + kf.rgba[i10 + 2] * w10 + kf.rgba[i01 + 2] * w01 + kf.rgba[i11 + 2] * w11;
+
+              sumR += r * weight;
+              sumG += g * weight;
+              sumB += b * weight;
+              sumW += weight;
+            }
+
+            const pIdx = (gy * ORTHO_GRID + gx) * 4;
+            if (sumW > 0.0001) {
+              out[pIdx] = (sumR / sumW) | 0;
+              out[pIdx + 1] = (sumG / sumW) | 0;
+              out[pIdx + 2] = (sumB / sumW) | 0;
+              out[pIdx + 3] = 255;
+            } else {
+              out[pIdx] = 7;
+              out[pIdx + 1] = 13;
+              out[pIdx + 2] = 25;
+              out[pIdx + 3] = 255;
+            }
+          }
         }
+
+        const tempOrthoCanvas = document.createElement('canvas');
+        tempOrthoCanvas.width = ORTHO_GRID;
+        tempOrthoCanvas.height = ORTHO_GRID;
+        tempOrthoCanvas.getContext('2d').putImageData(orthoImg, 0, 0);
+
+        ctx.save();
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(tempOrthoCanvas, mapLeft, mapTop, mapWidthPx, mapHeightPx);
+        ctx.restore();
       }
 
       // 4. Metric Coordinate Grid Overlay
@@ -1683,38 +1713,42 @@
       const originMapX = worldToMapX(0);
       const originMapY = worldToMapY(0);
 
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.22)';
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.24)';
       ctx.lineWidth = 1.5;
 
       for (let gx = originMapX % gridStepPx; gx < W; gx += gridStepPx) {
-        ctx.beginPath(); ctx.moveTo(gx, 110); ctx.lineTo(gx, H - 110); ctx.stroke();
+        if (gx >= mapLeft && gx <= mapRight) {
+          ctx.beginPath(); ctx.moveTo(gx, mapTop); ctx.lineTo(gx, mapBottom); ctx.stroke();
+        }
       }
       for (let gy = originMapY % gridStepPx; gy < H; gy += gridStepPx) {
-        ctx.beginPath(); ctx.moveTo(60, gy); ctx.lineTo(W - 60, gy); ctx.stroke();
+        if (gy >= mapTop && gy <= mapBottom) {
+          ctx.beginPath(); ctx.moveTo(mapLeft, gy); ctx.lineTo(mapRight, gy); ctx.stroke();
+        }
       }
 
       // Origin Axes
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.45)';
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.55)';
       ctx.lineWidth = 2.5;
-      if (originMapX >= 60 && originMapX <= W - 60) {
-        ctx.beginPath(); ctx.moveTo(originMapX, 110); ctx.lineTo(originMapX, H - 110); ctx.stroke();
+      if (originMapX >= mapLeft && originMapX <= mapRight) {
+        ctx.beginPath(); ctx.moveTo(originMapX, mapTop); ctx.lineTo(originMapX, mapBottom); ctx.stroke();
       }
-      if (originMapY >= 110 && originMapY <= H - 110) {
-        ctx.beginPath(); ctx.moveTo(60, originMapY); ctx.lineTo(W - 60, originMapY); ctx.stroke();
+      if (originMapY >= mapTop && originMapY <= mapBottom) {
+        ctx.beginPath(); ctx.moveTo(mapLeft, originMapY); ctx.lineTo(mapRight, originMapY); ctx.stroke();
       }
 
-      // 5. Plot Scanned 3D RGB Structural Point Cloud Landmarks
+      // 5. Plot Scanned 3D RGB Color-Edge Point Cloud Landmarks
       if (chkExportPoints.checked && state.triangulatedMapPoints.length > 0) {
         const ptRadius = Math.max(3, Math.min(7.5, pxPerMeter * 0.07));
         for (let mp of state.triangulatedMapPoints) {
           const mx = worldToMapX(mp.position.x);
           const my = worldToMapY(mp.position.z);
-          if (mx < 50 || mx > W - 50 || my < 105 || my > H - 105) continue;
+          if (mx < mapLeft || mx > mapRight || my < mapTop || my > mapBottom) continue;
 
           const r = Math.round(mp.color.r * 255);
           const g = Math.round(mp.color.g * 255);
           const b = Math.round(mp.color.b * 255);
-          ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.92)`;
+          ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.94)`;
           ctx.beginPath();
           ctx.arc(mx, my, ptRadius, 0, Math.PI * 2);
           ctx.fill();
@@ -1728,7 +1762,7 @@
         ctx.lineJoin = 'round';
         ctx.lineWidth = 8;
         ctx.strokeStyle = '#38bdf8';
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
         ctx.shadowBlur = 8;
 
         ctx.beginPath();
@@ -1788,7 +1822,7 @@
       ctx.fillText('NOW', curMapX + 24, curMapY + 8);
 
       // 9. Top Banner Header & Compass Rose
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.96)';
       ctx.fillRect(0, 0, W, 98);
       ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
       ctx.lineWidth = 2;
@@ -1796,12 +1830,12 @@
 
       ctx.fillStyle = '#38bdf8';
       ctx.font = 'bold 34px sans-serif';
-      ctx.fillText('VISUAL SLAM 2D PHOTO MAP', 44, 52);
+      ctx.fillText('TOP-DOWN ORTHOMOSAIC 2D MAP', 44, 52);
 
       const dateStr = new Date().toLocaleString('ja-JP');
       ctx.fillStyle = '#94a3b8';
       ctx.font = '22px monospace';
-      ctx.fillText(`${dateStr}  |  ${APP_BUILD_VERSION}`, 44, 82);
+      ctx.fillText(`${dateStr}  |  ${APP_BUILD_VERSION}  |  KF:${kfs.length}枚`, 44, 82);
 
       // Compass Badge
       ctx.save();
@@ -1818,7 +1852,7 @@
       ctx.restore();
 
       // 10. Bottom Footer Metadata & Dynamic Metric Scale Bar
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.96)';
       ctx.fillRect(0, H - 98, W, 98);
       ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
       ctx.beginPath(); ctx.moveTo(0, H - 98); ctx.lineTo(W, H - 98); ctx.stroke();
@@ -1857,15 +1891,17 @@
       ctx.textAlign = 'center';
       ctx.fillText(`${gridStepMeters}.0 m`, (barLeft + barRight) * 0.5, barY - 18);
       ctx.textAlign = 'left';
+
+      orthoStatusDesc.textContent = `オルソ生成完了 (キーフレーム ${kfs.length}枚合成 / 1マス ${gridStepMeters}m)`;
     }
 
     function download2DMapPNG() {
-      render2DExportMapImage();
+      reconstructTopDownOrthomosaic();
       const dataURL = exportMapCanvas.toDataURL('image/png');
       const link = document.createElement('a');
       link.href = dataURL;
       const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      link.download = `slam_photo_map_${stamp}.png`;
+      link.download = `slam_ortho_2d_map_${stamp}.png`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -1887,9 +1923,9 @@
       state.activeAnchors = [];
       state.triangulatedMapPoints = [];
       state.trajectory3D = [];
+      state.orthoKeyframes = [];
+      state.lastOrthoCapturePose = { x: 999, z: 999, yaw: 999 };
       prevGrayFrame = null;
-
-      clearOrthoCanvas();
 
       while (trajectoryMeshGroup.children.length > 0) {
         const obj = trajectoryMeshGroup.children.pop();
@@ -1904,9 +1940,13 @@
       pointCloudGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(0), 3));
 
       statDistElem.textContent = '0.00m';
-      posXElem.innerHTML = `0.00<span class="text-[10px] font-normal text-slate-400 ml-0.5">m</span>`;
-      posYElem.innerHTML = `0.00<span class="text-[10px] font-normal text-slate-400 ml-0.5">m</span>`;
-      posZElem.innerHTML = `0.00<span class="text-[10px] font-normal text-slate-400 ml-0.5">m</span>`;
+      posXElem.innerHTML = `0.00<span class="text-[9px] font-normal text-slate-400 ml-0.5">m</span>`;
+      posYElem.innerHTML = `0.00<span class="text-[9px] font-normal text-slate-400 ml-0.5">m</span>`;
+      posZElem.innerHTML = `0.00<span class="text-[9px] font-normal text-slate-400 ml-0.5">m</span>`;
+
+      if (state.viewMode === '2d') {
+        triggerOrthomosaicReconstruction();
+      }
 
       setStatus('開始地点(原点)をリセットしました', 'bg-sky-500');
     }

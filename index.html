@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>GPS-less Visual SLAM Photo Map (v2026.11.12-1744)</title>
+  <title>GPS-less Visual SLAM Photo Map (v2026.11.12-1754)</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Three.js for 3D Spatial Rendering -->
@@ -80,7 +80,7 @@
         <div class="flex items-center gap-1.5">
           <span class="text-[11px] font-bold tracking-wider uppercase text-sky-400">Outdoor SLAM Map</span>
           <span id="app-build-ver" class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-400/50">
-            v2026.11.12-1744
+            v2026.11.12-1754
           </span>
         </div>
         <div id="status-text" class="text-xs font-bold text-slate-100 mt-0.5 truncate">
@@ -89,13 +89,13 @@
       </div>
     </div>
 
-    <!-- Segmented Switcher: Camera / 3D Map -->
+    <!-- Segmented Switcher: Camera / 2D Map -->
     <div class="flex items-center bg-slate-900/90 p-1 rounded-full border border-white/15 shrink-0">
-      <button id="seg-btn-camera" class="px-3 py-1.5 rounded-full text-xs font-bold bg-sky-500 text-white shadow transition-all">
+      <button id="seg-btn-camera" class="px-3 py-1.5 rounded-full text-xs font-bold text-slate-300 hover:text-white transition-all">
         <i class="fa-solid fa-camera mr-1"></i>カメラ
       </button>
-      <button id="seg-btn-3d" class="px-3 py-1.5 rounded-full text-xs font-bold text-slate-300 hover:text-white transition-all">
-        <i class="fa-solid fa-map-location-dot mr-1"></i>3Dマップ
+      <button id="seg-btn-map" class="px-3 py-1.5 rounded-full text-xs font-bold bg-sky-500 text-white shadow transition-all">
+        <i class="fa-solid fa-map-location-dot mr-1"></i>2Dマップ
       </button>
     </div>
   </header>
@@ -103,9 +103,24 @@
   <!-- MAIN VIEWPORTS CONTAINER -->
   <main id="viewport-root" class="relative w-full h-full flex-1 overflow-hidden">
 
-    <!-- 1. LIVE CAMERA VIEWPORT -->
-    <div id="camera-viewport" class="absolute inset-0 w-full h-full z-10 transition-opacity duration-300">
+    <!-- 1. LIVE CAMERA VIEWPORT + 2D FEATURE POINTS OVERLAY -->
+    <div id="camera-viewport" class="absolute inset-0 w-full h-full z-0 opacity-0 pointer-events-none transition-opacity duration-300">
       <video id="camera-feed" playsinline webkit-playsinline autoplay muted class="absolute inset-0 w-full h-full object-cover"></video>
+      <!-- 2D Feature Points, Motion Trails & PnP Reprojection Canvas -->
+      <canvas id="tracking-canvas" class="absolute inset-0 w-full h-full z-20 pointer-events-none"></canvas>
+
+      <!-- Active Feature Telemetry Pill (Top Left in Camera Mode) -->
+      <div class="absolute top-28 left-4 z-30 pointer-events-none flex flex-col space-y-1.5">
+        <div class="px-3 py-1 rounded-full text-[10px] font-mono bg-black/75 backdrop-blur-md border border-emerald-400/40 text-emerald-200 w-max flex items-center gap-1.5 shadow-lg">
+          <i class="fa-solid fa-crosshairs text-emerald-400"></i>
+          <span>追跡特徴点: <strong id="cam-stat-features" class="text-white">0</strong> 点 (3D確定: <strong id="cam-stat-3d" class="text-emerald-300">0</strong>)</span>
+        </div>
+        <div class="flex items-center space-x-2 text-[9px] bg-black/70 px-2.5 py-1 rounded-full border border-white/10 w-max text-slate-200">
+          <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>3D確定点</span>
+          <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-cyan-400 inline-block"></span>追跡アンカー</span>
+          <span class="flex items-center gap-1"><span class="w-2 h-0.5 bg-amber-400 inline-block"></span>再投影誤差</span>
+        </div>
+      </div>
 
       <!-- Subtle Optical Center Guide -->
       <div class="absolute inset-0 pointer-events-none flex items-center justify-center z-15">
@@ -115,16 +130,24 @@
       </div>
     </div>
 
-    <!-- 2. THREE.JS 3D SPATIAL CURRENT LOCATION MAP VIEWPORT -->
-    <div id="three-viewport" class="absolute inset-0 w-full h-full z-0 opacity-0 pointer-events-none transition-opacity duration-300">
+    <!-- 2. TOP-DOWN 2D / 3D SPATIAL CURRENT LOCATION MAP VIEWPORT -->
+    <div id="three-viewport" class="absolute inset-0 w-full h-full z-10 opacity-100 pointer-events-auto transition-opacity duration-300">
       <div id="three-canvas-container" class="w-full h-full"></div>
 
-      <!-- 3D Map Gesture & Scale Legend -->
-      <div class="absolute top-28 left-4 z-20 pointer-events-none flex flex-col space-y-1.5">
-        <span class="text-[10px] font-medium text-slate-200 bg-black/75 px-3 py-1 rounded-full backdrop-blur-md border border-white/10 w-max">
-          <i class="fa-solid fa-hand-pointer text-sky-400 mr-1"></i> ドラッグ回転 / 2本指ズーム (1マス=5m)
+      <!-- Map View Controls & Legend (Top Left) -->
+      <div class="absolute top-28 left-4 z-20 flex flex-col space-y-2 pointer-events-auto">
+        <!-- Quick Perspective Toggle: Top-Down 2D vs 3D Tilted -->
+        <div class="flex items-center space-x-1.5">
+          <button id="btn-toggle-perspective" class="px-3 py-1.5 rounded-full text-[11px] font-bold bg-indigo-600/85 hover:bg-indigo-500 text-white border border-indigo-300/50 shadow-lg backdrop-blur-md flex items-center gap-1.5 active:scale-95 transition">
+            <i id="perspective-icon" class="fa-solid fa-compass text-xs text-sky-200"></i>
+            <span id="perspective-label">視点: 真上 (2D)</span>
+          </button>
+        </div>
+
+        <span class="text-[10px] font-medium text-slate-200 bg-black/75 px-3 py-1 rounded-full backdrop-blur-md border border-white/10 w-max pointer-events-none">
+          <i class="fa-solid fa-hand-pointer text-sky-400 mr-1"></i> パン・回転 / 2本指ズーム (1マス=5m)
         </span>
-        <div class="flex items-center space-x-2 text-[9px] bg-black/70 px-2.5 py-1 rounded-full border border-white/10 w-max">
+        <div class="flex items-center space-x-2 text-[9px] bg-black/70 px-2.5 py-1 rounded-full border border-white/10 w-max pointer-events-none">
           <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-sky-400 inline-block"></span>開始</span>
           <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>現在地</span>
           <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-400 inline-block"></span>傾き</span>
@@ -137,7 +160,7 @@
     <div id="pip-window" class="pip-container absolute top-28 right-4 z-30 cursor-pointer glass-panel flex flex-col items-center justify-center">
       <div id="pip-content" class="relative w-full h-full overflow-hidden flex items-center justify-center"></div>
       <span id="pip-label" class="absolute bottom-1.5 left-1.5 right-1.5 text-center z-40 px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-black/80 text-sky-300 border border-sky-400/30 pointer-events-none">
-        3Dマップ切替
+        カメラ映像
       </span>
     </div>
 
@@ -211,7 +234,7 @@
           <h2 class="text-sm font-bold text-white flex items-center gap-2">
             <i class="fa-solid fa-map text-sky-400"></i> 2D実写スキャンマップ出力
           </h2>
-          <span class="text-[10px] text-slate-400 font-mono">ビルド: v2026.11.12-1744 | 1200×1200px PNG</span>
+          <span class="text-[10px] text-slate-400 font-mono">ビルド: v2026.11.12-1754 | 1200×1200px PNG</span>
         </div>
         <button id="btn-close-map-modal" class="w-8 h-8 rounded-full glass-button flex items-center justify-center text-slate-300">
           <i class="fa-solid fa-xmark"></i>
@@ -258,10 +281,10 @@
   <script>
     /**
      * GPS-less Outdoor Visual SLAM Current Location Map App
-     * Real-Time 2D Photographic Orthomosaic + 3D RGB Point Cloud
-     * Version: v2026.11.12-1744
+     * Top-Down 2D Map Default View + Live Camera Feature Points Overlay
+     * Version: v2026.11.12-1754
      */
-    const APP_BUILD_VERSION = "v2026.11.12-1744";
+    const APP_BUILD_VERSION = "v2026.11.12-1754";
 
     // Pinhole Camera Intrinsics (iPhone Rear Wide ~68 deg horizontal FOV)
     const PROC_WIDTH = 240;
@@ -279,7 +302,7 @@
     // Persistent 2D Photographic Orthomosaic Ground Canvas (2048x2048 px -> covers 80m x 80m @ ~25.6 px/m)
     const ORTHO_RES = 2048;
     const ORTHO_WORLD_SPAN_M = 80.0;
-    const ORTHO_PX_PER_M = ORTHO_RES / ORTHO_WORLD_SPAN_M; // 25.6 px per meter
+    const ORTHO_PX_PER_M = ORTHO_RES / ORTHO_WORLD_SPAN_M;
     const orthoCanvas = document.createElement('canvas');
     orthoCanvas.width = ORTHO_RES;
     orthoCanvas.height = ORTHO_RES;
@@ -294,7 +317,8 @@
     const state = {
       isCameraReady: false,
       isTracking: false,
-      viewMode: '3d', // '3d' | 'camera'
+      viewMode: 'map', // 'map' | 'camera'
+      isTopDown2D: true, // Default map perspective is straight top-down 2D bird's-eye view
       hasSensorPermission: false,
       lastFrameTime: performance.now(),
       lastOrthoStampTime: 0,
@@ -341,6 +365,8 @@
 
     // --- DOM References ---
     const videoElem = document.getElementById('camera-feed');
+    const trackingCanvas = document.getElementById('tracking-canvas');
+    const trackingCtx = trackingCanvas.getContext('2d');
     const procCanvas = document.getElementById('proc-canvas');
     const procCtx = procCanvas.getContext('2d', { willReadFrequently: true });
 
@@ -355,7 +381,13 @@
     const statusText = document.getElementById('status-text');
 
     const segBtnCamera = document.getElementById('seg-btn-camera');
-    const segBtn3D = document.getElementById('seg-btn-3d');
+    const segBtnMap = document.getElementById('seg-btn-map');
+
+    const camStatFeatures = document.getElementById('cam-stat-features');
+    const camStat3D = document.getElementById('cam-stat-3d');
+
+    const btnTogglePerspective = document.getElementById('btn-toggle-perspective');
+    const perspectiveLabel = document.getElementById('perspective-label');
 
     const posXElem = document.getElementById('pos-x');
     const posYElem = document.getElementById('pos-y');
@@ -392,10 +424,12 @@
     let cameraAvatarGroup, levelHorizonRingMesh;
     let orthoGroundMesh, orthoGroundTexture;
 
-    // 3D Orbit Camera Parameters
+    // Map Orbit Camera Parameters (Default: Straight Top-Down 2D Bird's-Eye View)
     let is3DTouchDragging = false, previousTouchX = 0, previousTouchY = 0;
     let initialPinchDist = 0;
-    let orbitAzimuth = 0.0, orbitElevation = 0.85, orbitDistance = 9.0;
+    let orbitAzimuth = 0.0;
+    let orbitElevation = 1.565; // ~89.7 deg (straight overhead top-down 2D view)
+    let orbitDistance = 12.0;
 
     // ==========================================
     // 1. INITIALIZATION & CAMERA STREAMING
@@ -427,6 +461,9 @@
     function resizeCanvases() {
       const width = window.innerWidth;
       const height = window.innerHeight;
+
+      trackingCanvas.width = width;
+      trackingCanvas.height = height;
 
       if (renderer3D && camera3D) {
         const containerW = threeCanvasContainer.clientWidth || width;
@@ -466,7 +503,7 @@
         state.isCameraReady = true;
         state.isTracking = true;
         labelCamBtn.textContent = "稼働中";
-        setStatus('実写2Dマップ生成中', 'bg-emerald-500');
+        setStatus('2D実写マップ生成中', 'bg-emerald-500');
       } catch (err) {
         console.warn("Camera gesture required:", err);
         setStatus('「カメラ起動」をタップ', 'bg-amber-500');
@@ -497,10 +534,13 @@
 
       // Segmented View Switcher & PiP Tap
       segBtnCamera.addEventListener('click', () => setViewMode('camera'));
-      segBtn3D.addEventListener('click', () => setViewMode('3d'));
+      segBtnMap.addEventListener('click', () => setViewMode('map'));
       pipWindow.addEventListener('click', () => {
-        setViewMode(state.viewMode === 'camera' ? '3d' : 'camera');
+        setViewMode(state.viewMode === 'camera' ? 'map' : 'camera');
       });
+
+      // Top-Down 2D vs 3D Tilted Perspective Toggle
+      btnTogglePerspective.addEventListener('click', toggleMapPerspective);
 
       // 2D Map Image Export Modal
       btnOpenMapExport.addEventListener('click', openMapExportModal);
@@ -519,7 +559,7 @@
       window.addEventListener('deviceorientation', handleOrientation, true);
       document.body.addEventListener('touchstart', ensureVideoPlaying, { passive: true });
 
-      // 3D Viewport Touch Orbit & Pinch Zoom
+      // Map Viewport Touch Orbit / Rotate & Pinch Zoom
       threeViewport.addEventListener('touchstart', (e) => {
         if (e.touches.length === 1) {
           is3DTouchDragging = true;
@@ -539,7 +579,9 @@
           const dx = e.touches[0].clientX - previousTouchX;
           const dy = e.touches[0].clientY - previousTouchY;
           orbitAzimuth -= dx * 0.008;
-          orbitElevation = Math.max(0.08, Math.min(Math.PI / 2.02, orbitElevation + dy * 0.008));
+          if (!state.isTopDown2D) {
+            orbitElevation = Math.max(0.12, Math.min(1.565, orbitElevation + dy * 0.008));
+          }
           previousTouchX = e.touches[0].clientX;
           previousTouchY = e.touches[0].clientY;
         } else if (e.touches.length === 2 && initialPinchDist > 0) {
@@ -548,7 +590,7 @@
             e.touches[0].clientY - e.touches[1].clientY
           );
           const scale = initialPinchDist / Math.max(10, curDist);
-          orbitDistance = Math.max(1.5, Math.min(60.0, orbitDistance * scale));
+          orbitDistance = Math.max(2.0, Math.min(65.0, orbitDistance * scale));
           initialPinchDist = curDist;
         }
       }, { passive: true });
@@ -557,6 +599,18 @@
         is3DTouchDragging = false;
         initialPinchDist = 0;
       });
+    }
+
+    function toggleMapPerspective() {
+      state.isTopDown2D = !state.isTopDown2D;
+      if (state.isTopDown2D) {
+        orbitElevation = 1.565; // Straight overhead top-down 2D view
+        orbitAzimuth = 0.0;
+        perspectiveLabel.textContent = "視点: 真上 (2D)";
+      } else {
+        orbitElevation = 0.72;  // 3D oblique perspective
+        perspectiveLabel.textContent = "視点: 3D斜め";
+      }
     }
 
     async function requestSensorPermissions() {
@@ -613,7 +667,7 @@
       state.pose.pitch = e.beta - state.sensor.initBeta;
       state.pose.roll = -(e.gamma - state.sensor.initGamma);
 
-      // 2. Compute true 3D Quaternion for the 3D Map Device Avatar & Ground Projection
+      // 2. Compute true 3D Quaternion for the Map Device Avatar & Ground Projection
       const rawQuat = computeDeviceQuaternion(e.alpha, e.beta, e.gamma);
       if (state.yawCalibrationQuat === null) {
         const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(rawQuat);
@@ -642,14 +696,14 @@
         threeViewport.className = "absolute inset-0 w-full h-full z-0 opacity-0 pointer-events-none transition-opacity duration-300";
 
         if (!cameraViewport.contains(videoElem)) {
-          cameraViewport.insertBefore(videoElem, cameraViewport.firstChild);
+          cameraViewport.insertBefore(videoElem, trackingCanvas);
         }
         pipContent.innerHTML = '';
         pipContent.appendChild(threeCanvasContainer);
-        pipLabel.textContent = "3Dマップ表示";
+        pipLabel.textContent = "2Dマップ表示";
 
         segBtnCamera.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-sky-500 text-white shadow transition-all";
-        segBtn3D.className = "px-3 py-1.5 rounded-full text-xs font-bold text-slate-300 hover:text-white transition-all";
+        segBtnMap.className = "px-3 py-1.5 rounded-full text-xs font-bold text-slate-300 hover:text-white transition-all";
       } else {
         threeViewport.className = "absolute inset-0 w-full h-full z-10 opacity-100 pointer-events-auto transition-opacity duration-300";
         cameraViewport.className = "absolute inset-0 w-full h-full z-0 opacity-0 pointer-events-none transition-opacity duration-300";
@@ -661,7 +715,7 @@
         pipContent.appendChild(videoElem);
         pipLabel.textContent = "カメラ映像";
 
-        segBtn3D.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-sky-500 text-white shadow transition-all";
+        segBtnMap.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-sky-500 text-white shadow transition-all";
         segBtnCamera.className = "px-3 py-1.5 rounded-full text-xs font-bold text-slate-300 hover:text-white transition-all";
       }
 
@@ -674,15 +728,9 @@
     // ==========================================
     // 3. REAL-TIME CAMERA-TO-2D ORTHOMOSAIC GROUND PROJECTION
     // ==========================================
-    /**
-     * Projects the current live camera image onto the persistent 2048x2048 world XZ ground canvas
-     * using inverse camera-to-ground ray intersection (homography approximation) so real textures
-     * (pavement, tiles, floor lines, terrain) accumulate into a continuous 2D photographic map.
-     */
     function projectCameraFrameToOrthoMap(now) {
       if (!videoElem || videoElem.readyState < 2) return;
 
-      // Throttle stamping to ~8 Hz or when moved/rotated significantly
       const tiltEuler = new THREE.Euler().setFromQuaternion(state.avatarQuaternion, 'YXZ');
       const heading = tiltEuler.y;
       const pitch = tiltEuler.x;
@@ -697,12 +745,10 @@
       state.lastOrthoStampTime = now;
       state.lastOrthoPose = { x: state.pose.x, z: state.pose.z, yaw: heading };
 
-      // Draw camera frame into patchCanvas with soft radial vignette mask so seams blend smoothly
       patchCtx.clearRect(0, 0, patchCanvas.width, patchCanvas.height);
       patchCtx.save();
       patchCtx.drawImage(videoElem, 0, 0, patchCanvas.width, patchCanvas.height);
 
-      // Apply destination-in radial alpha mask to feather edges of each projected frame
       patchCtx.globalCompositeOperation = 'destination-in';
       const grad = patchCtx.createRadialGradient(
         patchCanvas.width * 0.5, patchCanvas.height * 0.62, patchCanvas.width * 0.15,
@@ -715,38 +761,31 @@
       patchCtx.fillRect(0, 0, patchCanvas.width, patchCanvas.height);
       patchCtx.restore();
 
-      // Compute ground-plane projection footprint in front of the camera
-      // Camera height above ground ~1.35m; adjust forward reach based on pitch
       const camHeight = Math.max(0.8, 1.35 + state.pose.y);
       const clampedPitch = Math.max(-1.2, Math.min(0.35, pitch));
-      // When looking slightly down (clampedPitch < 0), center of ground patch is closer; when level, projects 1.0m to 6.5m ahead
       const forwardOffset = Math.max(1.2, Math.min(5.5, camHeight / Math.tan(Math.max(0.22, -clampedPitch + 0.35))));
       const patchWidthM = forwardOffset * 1.35;
       const patchDepthM = forwardOffset * 1.45;
 
-      // World center of projected ground footprint
       const fwdX = -Math.sin(heading);
       const fwdZ = -Math.cos(heading);
       const footprintWorldX = state.pose.x + fwdX * forwardOffset;
       const footprintWorldZ = state.pose.z + fwdZ * forwardOffset;
 
-      // Convert world coordinates (meters) to orthoCanvas pixel coordinates
       const halfOrtho = ORTHO_RES * 0.5;
       const canvasX = halfOrtho + footprintWorldX * ORTHO_PX_PER_M;
       const canvasY = halfOrtho + footprintWorldZ * ORTHO_PX_PER_M;
       const drawW = patchWidthM * ORTHO_PX_PER_M;
       const drawH = patchDepthM * ORTHO_PX_PER_M;
 
-      // Guard within canvas bounds
       if (canvasX < 0 || canvasX > ORTHO_RES || canvasY < 0 || canvasY > ORTHO_RES) return;
 
       orthoCtx.save();
       orthoCtx.translate(canvasX, canvasY);
-      orthoCtx.rotate(-heading); // Align top of camera image with camera forward direction (-Z)
+      orthoCtx.rotate(-heading);
       orthoCtx.drawImage(patchCanvas, -drawW * 0.5, -drawH * 0.5, drawW, drawH);
       orthoCtx.restore();
 
-      // Expand photo coverage bounding box for 2D map auto-fit
       const radiusM = Math.max(patchWidthM, patchDepthM) * 0.6;
       if (!state.orthoBounds.hasData) {
         state.orthoBounds = {
@@ -783,6 +822,7 @@
         projectCameraFrameToOrthoMap(now);
       }
 
+      render2DCameraFeaturesOverlay();
       update3DScene();
       requestAnimationFrame(mainLoop);
     }
@@ -1002,8 +1042,10 @@
       for (let a of anchors) {
         const proj = projectWorldToPixel(a.worldPos, camPos, invRotMat);
         if (proj) {
-          const err = Math.hypot(a.u - proj.u, a.v - proj.v);
-          sumSqErr += err * err;
+          a.projU = proj.u;
+          a.projV = proj.v;
+          a.residualPx = Math.hypot(a.u - proj.u, a.v - proj.v);
+          sumSqErr += a.residualPx * a.residualPx;
           validCount++;
         }
       }
@@ -1071,6 +1113,8 @@
             anchor.u = bestU;
             anchor.v = bestV;
             anchor.age++;
+            anchor.trail.push({ u: bestU, v: bestV });
+            if (anchor.trail.length > 8) anchor.trail.shift();
 
             const cIdx = (bestV * PROC_WIDTH + bestU) * 4;
             anchor.color = {
@@ -1168,10 +1212,14 @@
             id: state.nextAnchorId++,
             u: c.u,
             v: c.v,
+            trail: [{ u: c.u, v: c.v }],
             worldPos: initialWorldPos,
             birthOrigin: updatedCamOrigin.clone(),
             birthRay: worldRay,
             isTriangulated: !!matchedExisting3D,
+            projU: c.u,
+            projV: c.v,
+            residualPx: 0,
             color: { r: c.r, g: c.g, b: c.b },
             age: 0
           });
@@ -1227,7 +1275,67 @@
     }
 
     // ==========================================
-    // 5. THREE.JS 3D SPATIAL RENDERER & ORTHOMOSAIC GROUND
+    // 5. LIVE CAMERA MODE 2D FEATURE OVERLAY
+    // ==========================================
+    function render2DCameraFeaturesOverlay() {
+      const width = trackingCanvas.width;
+      const height = trackingCanvas.height;
+      trackingCtx.clearRect(0, 0, width, height);
+
+      // Update active feature counters
+      let triCount = 0;
+      for (let a of state.activeAnchors) {
+        if (a.isTriangulated) triCount++;
+      }
+      if (camStatFeatures) camStatFeatures.textContent = state.activeAnchors.length;
+      if (camStat3D) camStat3D.textContent = triCount;
+
+      if (state.viewMode !== 'camera') return;
+
+      const scaleX = width / PROC_WIDTH;
+      const scaleY = height / PROC_HEIGHT;
+
+      for (let a of state.activeAnchors) {
+        const obsX = a.u * scaleX;
+        const obsY = a.v * scaleY;
+        const projX = a.projU * scaleX;
+        const projY = a.projV * scaleY;
+
+        // 1. Optical Flow Motion Trail
+        if (a.trail && a.trail.length > 1) {
+          trackingCtx.beginPath();
+          for (let i = 0; i < a.trail.length; i++) {
+            const tx = a.trail[i].u * scaleX;
+            const ty = a.trail[i].v * scaleY;
+            if (i === 0) trackingCtx.moveTo(tx, ty);
+            else trackingCtx.lineTo(tx, ty);
+          }
+          trackingCtx.strokeStyle = 'rgba(56, 189, 248, 0.65)';
+          trackingCtx.lineWidth = 2.0;
+          trackingCtx.stroke();
+        }
+
+        // 2. PnP Reprojection Residual Vector
+        trackingCtx.beginPath();
+        trackingCtx.moveTo(obsX, obsY);
+        trackingCtx.lineTo(projX, projY);
+        trackingCtx.strokeStyle = a.residualPx < 4.5 ? '#facc15' : '#fb7185';
+        trackingCtx.lineWidth = 1.5;
+        trackingCtx.stroke();
+
+        // 3. Keypoint Circle (Emerald = 3D-triangulated anchor, Cyan = tracked anchor)
+        trackingCtx.beginPath();
+        trackingCtx.arc(obsX, obsY, a.isTriangulated ? 5.5 : 4.2, 0, Math.PI * 2);
+        trackingCtx.fillStyle = a.isTriangulated ? '#10b981' : '#22d3ee';
+        trackingCtx.fill();
+        trackingCtx.lineWidth = 1.5;
+        trackingCtx.strokeStyle = '#ffffff';
+        trackingCtx.stroke();
+      }
+    }
+
+    // ==========================================
+    // 6. THREE.JS TOP-DOWN 2D / 3D SPATIAL RENDERER
     // ==========================================
     function initThreeJS() {
       const width = window.innerWidth;
@@ -1237,7 +1345,7 @@
       scene.background = new THREE.Color(0x050811);
 
       camera3D = new THREE.PerspectiveCamera(60, width / height, 0.1, 250);
-      camera3D.position.set(0, 6.0, 9.0);
+      camera3D.position.set(0, 12.0, 0.05);
 
       renderer3D = new THREE.WebGLRenderer({ antialias: true, alpha: false });
       renderer3D.setSize(width, height);
@@ -1259,7 +1367,7 @@
       const orthoPlaneMat = new THREE.MeshBasicMaterial({
         map: orthoGroundTexture,
         transparent: true,
-        opacity: 0.92,
+        opacity: 0.94,
         depthWrite: false
       });
       orthoGroundMesh = new THREE.Mesh(orthoPlaneGeo, orthoPlaneMat);
@@ -1279,24 +1387,24 @@
 
       // Origin Start Marker (Sky Blue Pin)
       startMarkerMesh = new THREE.Mesh(
-        new THREE.SphereGeometry(0.16, 16, 16),
+        new THREE.SphereGeometry(0.18, 16, 16),
         new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7 })
       );
       scene.add(startMarkerMesh);
 
       // Current Position Marker (Rose Red Pin)
       currentMarkerMesh = new THREE.Mesh(
-        new THREE.SphereGeometry(0.13, 16, 16),
+        new THREE.SphereGeometry(0.15, 16, 16),
         new THREE.MeshStandardMaterial({ color: 0xf43f5e, emissive: 0xe11d48 })
       );
       scene.add(currentMarkerMesh);
 
       // World-Level Horizon Reference Ring
-      const horizonGeo = new THREE.RingGeometry(0.42, 0.445, 48);
+      const horizonGeo = new THREE.RingGeometry(0.46, 0.49, 48);
       horizonGeo.rotateX(-Math.PI / 2);
       levelHorizonRingMesh = new THREE.Mesh(
         horizonGeo,
-        new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.45 })
+        new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.5 })
       );
       scene.add(levelHorizonRingMesh);
 
@@ -1317,26 +1425,26 @@
       cameraAvatarGroup.add(phoneScreen);
 
       // Gold Attitude Ring attached to device
-      const attitudeGeo = new THREE.RingGeometry(0.38, 0.415, 48);
+      const attitudeGeo = new THREE.RingGeometry(0.41, 0.45, 48);
       attitudeGeo.rotateX(-Math.PI / 2);
       const attitudeMesh = new THREE.Mesh(
         attitudeGeo,
-        new THREE.MeshBasicMaterial({ color: 0xfbbf24, side: THREE.DoubleSide, transparent: true, opacity: 0.9 })
+        new THREE.MeshBasicMaterial({ color: 0xfbbf24, side: THREE.DoubleSide, transparent: true, opacity: 0.92 })
       );
       cameraAvatarGroup.add(attitudeMesh);
 
       // Camera Field-Of-View Frustum Cone pointing along -Z
-      const frustumGeo = new THREE.ConeGeometry(0.55, 0.75, 4);
+      const frustumGeo = new THREE.ConeGeometry(0.60, 0.85, 4);
       frustumGeo.rotateX(-Math.PI / 2);
       const frustumMesh = new THREE.Mesh(
         frustumGeo,
-        new THREE.MeshBasicMaterial({ color: 0x38bdf8, wireframe: true, transparent: true, opacity: 0.65 })
+        new THREE.MeshBasicMaterial({ color: 0x38bdf8, wireframe: true, transparent: true, opacity: 0.7 })
       );
-      frustumMesh.position.z = -0.38;
+      frustumMesh.position.z = -0.42;
       cameraAvatarGroup.add(frustumMesh);
 
       // Forward Heading Arrow (-Z)
-      const arrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 0, 0), 0.85, 0x10b981, 0.20, 0.12);
+      const arrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 0, 0), 0.95, 0x10b981, 0.22, 0.14);
       cameraAvatarGroup.add(arrow);
 
       scene.add(cameraAvatarGroup);
@@ -1381,7 +1489,7 @@
 
         const curve = new THREE.CatmullRomCurve3(pts);
         const segments = Math.min(pts.length * 3, 400);
-        const tubeGeo = new THREE.TubeGeometry(curve, segments, 0.045, 8, false);
+        const tubeGeo = new THREE.TubeGeometry(curve, segments, 0.055, 8, false);
 
         const vCount = tubeGeo.attributes.position.count;
         const tubeColors = new Float32Array(vCount * 3);
@@ -1403,18 +1511,20 @@
         );
         trajectoryMeshGroup.add(tubeMesh);
 
-        const step = Math.max(1, Math.floor(pts.length / 30));
-        for (let i = 0; i < pts.length; i += step) {
-          const p = pts[i];
-          const pGeo = new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(p.x, p.y, p.z),
-            new THREE.Vector3(p.x, -1.2, p.z)
-          ]);
-          const line = new THREE.Line(
-            pGeo,
-            new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.28 })
-          );
-          pillarsGroup.add(line);
+        if (!state.isTopDown2D) {
+          const step = Math.max(1, Math.floor(pts.length / 30));
+          for (let i = 0; i < pts.length; i += step) {
+            const p = pts[i];
+            const pGeo = new THREE.BufferGeometry().setFromPoints([
+              new THREE.Vector3(p.x, p.y, p.z),
+              new THREE.Vector3(p.x, -1.2, p.z)
+            ]);
+            const line = new THREE.Line(
+              pGeo,
+              new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.28 })
+            );
+            pillarsGroup.add(line);
+          }
         }
       }
 
@@ -1451,7 +1561,7 @@
         pointCloudGeometry.attributes.color.needsUpdate = true;
       }
 
-      // Orbit Camera Follow
+      // Orbit / Top-Down 2D Camera Follow
       const tx = state.pose.x;
       const ty = state.pose.y;
       const tz = state.pose.z;
@@ -1467,7 +1577,7 @@
     }
 
     // ==========================================
-    // 6. HIGH-RES 2D PHOTOGRAPHIC MAP PNG GENERATOR
+    // 7. HIGH-RES 2D PHOTOGRAPHIC MAP PNG GENERATOR
     // ==========================================
     function openMapExportModal() {
       mapExportModal.classList.remove('opacity-0', 'pointer-events-none');
@@ -1762,7 +1872,7 @@
     }
 
     // ==========================================
-    // 7. ORIGIN RESET
+    // 8. ORIGIN RESET
     // ==========================================
     function resetOriginPosition() {
       state.pose = { x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 0 };

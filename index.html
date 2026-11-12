@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>iPhone Visual SLAM - PnP 3D Measurement (v2026.11.12-1422)</title>
+  <title>iPhone Visual SLAM - PnP 3D Measurement (v2026.11.12-1541)</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Three.js for 3D Spatial Rendering & Raycasting -->
@@ -81,7 +81,7 @@
           <h1 class="text-[10px] font-bold tracking-wider uppercase text-sky-400">PnP Visual SLAM</h1>
           <!-- Permanent Build Version Badge -->
           <span id="app-build-ver" class="px-1.5 py-0.5 rounded text-[8px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-400/50 shadow-sm">
-            v2026.11.12-1422
+            v2026.11.12-1541
           </span>
         </div>
         <div id="status-text" class="text-[11px] font-bold text-slate-100 mt-0.5 truncate max-w-[165px]">
@@ -379,7 +379,7 @@
           <h2 class="text-base font-bold text-white flex items-center gap-2">
             <i class="fa-solid fa-anchor text-fuchsia-400"></i> Map-to-Frame PnP SLAM
           </h2>
-          <span class="text-[10px] font-mono text-cyan-300 font-bold">ビルドバージョン: v2026.11.12-1422</span>
+          <span class="text-[10px] font-mono text-cyan-300 font-bold">ビルドバージョン: v2026.11.12-1541</span>
         </div>
         <button id="btn-close-modal" class="p-2 text-slate-400 hover:text-white">
           <i class="fa-solid fa-xmark text-xl"></i>
@@ -393,8 +393,8 @@
         </div>
 
         <div class="p-3 glass-card rounded-2xl border border-sky-500/30">
-          <h3 class="font-bold text-sky-300 text-xs mb-1">2. 多視点三角測量による奥行き精緻化</h3>
-          <p>iPhone水平画角68°モデルに基づき、8cm以上のカメラ移動と4.0°以上の視差角が得られたアンカー点を三角測量で実空間奥行き（0.3m〜6.0m）へ更新。新しい場所へ移動するとキーフレームを自動追加して空間マップを拡張します。</p>
+          <h3 class="font-bold text-sky-300 text-xs mb-1">2. クォータニオン姿勢変換による端末傾き表現</h3>
+          <p>iOSセンサーの3次元姿勢（クォータニオン）を用いて、縦持ちでもジンバルロックせず端末の傾き（Pitch・Roll・Yaw）を3Dマップ上のスマホアバターへ正確に反映します。</p>
         </div>
 
         <div class="p-3 glass-card rounded-2xl border border-amber-500/30">
@@ -414,10 +414,10 @@
 
   <script>
     /**
-     * iPhone Visual SLAM with Map-to-Frame PnP Gauss-Newton Solver
-     * Version: v2026.11.12-1422
+     * iPhone Visual SLAM with Map-to-Frame PnP Gauss-Newton Solver & 3D Quaternion Tilt
+     * Version: v2026.11.12-1541
      */
-    const APP_BUILD_VERSION = "v2026.11.12-1422";
+    const APP_BUILD_VERSION = "v2026.11.12-1541";
 
     // Pinhole Camera Intrinsics (iPhone Rear Wide ~68 deg horizontal FOV)
     const PROC_WIDTH = 240;
@@ -444,6 +444,10 @@
         x: 0, y: 0, z: 0,
         pitch: 0, yaw: 0, roll: 0
       },
+      // 3D Avatar Quaternion Orientation (Gimbal-lock-free tilt representation)
+      avatarQuaternion: new THREE.Quaternion(),
+      yawCalibrationQuat: null,
+
       lastPose: { x: 0, y: 0, z: 0 },
       totalDistance: 0,
       reprojectionRMSE: 0,
@@ -458,12 +462,11 @@
       },
 
       // Active 2D-3D Tracked Features & Persistent World Anchors
-      // Each item: { id, u, v, prevU, prevV, trail: [{u,v}], worldPos: THREE.Vector3, birthOrigin: THREE.Vector3, birthRay: THREE.Vector3, isTriangulated: bool, projU, projV, residualPx, color: {r,g,b}, age, lostFrames }
       activeAnchors: [],
       nextAnchorId: 1,
 
       // Triangulated Persistent 3D Point Cloud Landmarks
-      triangulatedMapPoints: [], // { position: THREE.Vector3, color: {r,g,b} }
+      triangulatedMapPoints: [],
       trajectory3D: [],
 
       // 3D Measurement State
@@ -776,6 +779,31 @@
       }
     }
 
+    /**
+     * W3C DeviceOrientation (alpha, beta, gamma) -> Three.js Y-up Quaternion
+     * Prevents gimbal lock when holding iPhone upright in portrait mode (~90 deg beta)
+     */
+    function computeDeviceQuaternion(alphaDeg, betaDeg, gammaDeg) {
+      const alpha = THREE.MathUtils.degToRad(alphaDeg);
+      const beta = THREE.MathUtils.degToRad(betaDeg);
+      const gamma = THREE.MathUtils.degToRad(gammaDeg);
+
+      const screenAngle = (window.screen && window.screen.orientation && typeof window.screen.orientation.angle === 'number')
+        ? window.screen.orientation.angle
+        : (typeof window.orientation === 'number' ? window.orientation : 0);
+      const orient = THREE.MathUtils.degToRad(screenAngle);
+
+      const zee = new THREE.Vector3(0, 0, 1);
+      const euler = new THREE.Euler(beta, alpha, -gamma, 'YXZ');
+      const q = new THREE.Quaternion().setFromEuler(euler);
+      const q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)); // -PI/2 around X
+      const q0 = new THREE.Quaternion().setFromAxisAngle(zee, -orient);
+
+      q.multiply(q1);
+      q.multiply(q0);
+      return q;
+    }
+
     function handleOrientation(e) {
       if (e.alpha === null) return;
       if (state.sensor.initAlpha === null) {
@@ -784,18 +812,34 @@
         state.sensor.initGamma = e.gamma;
       }
 
+      // 1. Keep exact original Euler calculation for PnP Solver compatibility
       let yaw = e.alpha - state.sensor.initAlpha;
       if (yaw > 180) yaw -= 360;
       if (yaw < -180) yaw += 360;
 
-      // Map device orientation to Three.js Y-up Euler angles
       state.pose.yaw = yaw;
       state.pose.pitch = e.beta - state.sensor.initBeta;
       state.pose.roll = -(e.gamma - state.sensor.initGamma);
 
-      yawElem.textContent = `${state.pose.yaw.toFixed(1)}°`;
-      pitchElem.textContent = `${state.pose.pitch.toFixed(1)}°`;
-      rollElem.textContent = `${state.pose.roll.toFixed(1)}°`;
+      // 2. Compute true 3D Quaternion for the 3D Map Device Avatar
+      const rawQuat = computeDeviceQuaternion(e.alpha, e.beta, e.gamma);
+      if (state.yawCalibrationQuat === null) {
+        // Extract horizontal heading (yaw around world +Y) on first sample so initial forward points to -Z
+        const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(rawQuat);
+        const initHeading = Math.atan2(-fwd.x, -fwd.z);
+        state.yawCalibrationQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -initHeading);
+      }
+      state.avatarQuaternion.copy(state.yawCalibrationQuat).multiply(rawQuat);
+
+      // Extract clean gravity-referenced tilt angles for telemetry readout
+      const tiltEuler = new THREE.Euler().setFromQuaternion(state.avatarQuaternion, 'YXZ');
+      const dispYaw = THREE.MathUtils.radToDeg(tiltEuler.y);
+      const dispPitch = THREE.MathUtils.radToDeg(tiltEuler.x);
+      const dispRoll = THREE.MathUtils.radToDeg(tiltEuler.z);
+
+      yawElem.textContent = `${dispYaw.toFixed(1)}°`;
+      pitchElem.textContent = `${dispPitch.toFixed(1)}°`;
+      rollElem.textContent = `${dispRoll.toFixed(1)}°`;
     }
 
     function cycleViewMode() {
@@ -852,7 +896,7 @@
     }
 
     // ==========================================
-    // 3. MAP-TO-FRAME PNP SLAM ALGORITHM
+    // 3. MAP-TO-FRAME PNP SLAM ALGORITHM (UNTOUCHED)
     // ==========================================
     function mainLoop() {
       const now = performance.now();
@@ -886,9 +930,6 @@
       return 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
     }
 
-    /**
-     * Extract high-contrast Shi-Tomasi corner endpoints with Grid-NMS
-     */
     function extractShiTomasiCorners(data, maxCorners = 48) {
       const corners = [];
       const rows = 5;
@@ -944,9 +985,6 @@
       return corners.sort((a, b) => b.score - a.score).slice(0, maxCorners);
     }
 
-    /**
-     * Get Camera Rotation Matrix (World <- Camera) from Euler Angles (Y-up)
-     */
     function getCameraRotationMatrix(pose) {
       const euler = new THREE.Euler(
         THREE.MathUtils.degToRad(pose.pitch),
@@ -957,23 +995,16 @@
       return new THREE.Matrix4().makeRotationFromEuler(euler);
     }
 
-    /**
-     * Project a 3D World Landmark into 2D Pinhole Pixel Coordinates (u, v)
-     */
     function projectWorldToPixel(worldPt, camPos, invRotMat) {
       const rel = new THREE.Vector3().subVectors(worldPt, camPos).applyMatrix4(invRotMat);
-      // Forward is -Z in Three.js camera space
       const depth = -rel.z;
       if (depth < 0.15) return null;
 
       const u = CX + FOCAL_PX * (rel.x / depth);
-      const v = CY - FOCAL_PX * (rel.y / depth); // Image +v goes down, World +Y goes up
+      const v = CY - FOCAL_PX * (rel.y / depth);
       return { u, v, depth };
     }
 
-    /**
-     * Back-project 2D Pixel (u, v) into Normalized World Ray Direction
-     */
     function pixelToWorldRay(u, v, rotMat) {
       const rayCam = new THREE.Vector3(
         (u - CX) / FOCAL_PX,
@@ -983,49 +1014,37 @@
       return rayCam.applyMatrix4(rotMat).normalize();
     }
 
-    /**
-     * Multi-View Stereo Ray-Ray Triangulation (Minimum 8cm baseline, >=4.0 deg parallax, <5cm residual)
-     */
     function triangulateStereoRays(orig0, ray0, orig1, ray1) {
       const w0 = new THREE.Vector3().subVectors(orig0, orig1);
       const b = ray0.dot(ray1);
       const d = ray0.dot(w0);
       const e = ray1.dot(w0);
 
-      const denom = 1.0 - b * b; // sin^2(parallaxAngle)
-      // Enforce >= 4.0 degrees parallax angle (sin^2(4 deg) ≈ 0.00487)
+      const denom = 1.0 - b * b;
       if (denom < 0.0049) return null;
 
       const s = (b * e - d) / denom;
       const t = (e - b * d) / denom;
 
-      // Enforce realistic depth bounds [0.3m, 6.0m]
       if (s < 0.3 || s > 6.0 || t < 0.3 || t > 6.0) return null;
 
       const p0 = new THREE.Vector3().copy(orig0).addScaledVector(ray0, s);
       const p1 = new THREE.Vector3().copy(orig1).addScaledVector(ray1, t);
 
-      // Closest-approach residual must be < 5cm
       if (p0.distanceTo(p1) > 0.05) return null;
 
       return new THREE.Vector3().addVectors(p0, p1).multiplyScalar(0.5);
     }
 
-    /**
-     * Iterative Gauss-Newton 2D-3D PnP Translation Solver
-     * Minimizes sum of squared 2D reprojection residuals || (u_obs, v_obs) - proj(P_world, C) ||^2
-     * with respect to camera translation C = (x, y, z), holding gyro orientation fixed.
-     */
     function solvePnPTranslationGaussNewton(anchors, initialCamPos, rotMat, invRotMat) {
       if (anchors.length < 4) return null;
 
       const camPos = initialCamPos.clone();
       const maxIters = 6;
-      const huberDelta = 12.0; // pixels outlier threshold
+      const huberDelta = 12.0;
 
-      // Normal equations J^T W J * delta = J^T W r (3x3 symmetric linear system)
       for (let iter = 0; iter < maxIters; iter++) {
-        let H00 = 1e-3, H01 = 0, H02 = 0; // Small Levenberg-Marquardt damping
+        let H00 = 1e-3, H01 = 0, H02 = 0;
         let H11 = 1e-3, H12 = 0;
         let H22 = 1e-3;
         let g0 = 0, g1 = 0, g2 = 0;
@@ -1044,14 +1063,8 @@
           const errV = a.v - vPred;
           const errNorm = Math.hypot(errU, errV);
 
-          // Huber robust weight to suppress optical flow outliers
           const weight = errNorm <= huberDelta ? 1.0 : (huberDelta / errNorm);
 
-          // Jacobian of (uPred, vPred) w.r.t. camera-space point (X_c, Y_c, Z_c)
-          // Note: Z = -Z_c => u = cx - f * X_c / Z_c, v = cy + f * Y_c / Z_c
-          // Since P_cam = R^T (P_world - C), d(P_cam)/dC = -R^T
-          // d(uPred)/d(P_cam) = [ f/Z, 0, f*rel.x / Z^2 ]
-          // d(vPred)/d(P_cam) = [ 0, -f/Z, -f*rel.y / Z^2 ]
           const invZ = 1.0 / Z;
           const invZ2 = invZ * invZ;
 
@@ -1063,8 +1076,7 @@
           const jv_yc = FOCAL_PX * invZ;
           const jv_zc = FOCAL_PX * rel.y * invZ2;
 
-          // Transform Jacobian row from Camera frame to World frame via R (since d(P_cam)/dC = -R^T)
-          const e = rotMat.elements; // Column-major 4x4: R_col0=(e0,e1,e2), R_col1=(e4,e5,e6), R_col2=(e8,e9,e10)
+          const e = rotMat.elements;
           const Ju0 = ju_xc * e[0] + ju_yc * e[4] + ju_zc * e[8];
           const Ju1 = ju_xc * e[1] + ju_yc * e[5] + ju_zc * e[9];
           const Ju2 = ju_xc * e[2] + ju_yc * e[6] + ju_zc * e[10];
@@ -1088,7 +1100,6 @@
 
         if (inlierCount < 4) return null;
 
-        // Solve 3x3 Symmetric Linear System H * delta = g via Cramer's Rule
         const det =
           H00 * (H11 * H22 - H12 * H12) -
           H01 * (H01 * H22 - H12 * H02) +
@@ -1113,7 +1124,6 @@
           g0 * (H01 * H12 - H11 * H02)
         );
 
-        // Clamp step size per iteration for numerical stability
         const stepNorm = Math.hypot(dx, dy, dz);
         const maxStep = 0.25;
         const scale = stepNorm > maxStep ? (maxStep / stepNorm) : 1.0;
@@ -1125,7 +1135,6 @@
         if (stepNorm < 1e-4) break;
       }
 
-      // Compute final Reprojection RMSE
       let sumSqErr = 0;
       let validCount = 0;
       for (let a of anchors) {
@@ -1143,13 +1152,9 @@
       return { camPos, rmse, validCount };
     }
 
-    /**
-     * Main Map-to-Frame Visual SLAM Execution Step
-     */
     function runPnPVisualSLAM(frameData, dt) {
       const data = frameData.data;
 
-      // Build current frame grayscale luminance array for fast optical flow patch correlation
       const curGray = new Uint8Array(PROC_WIDTH * PROC_HEIGHT);
       for (let i = 0, p = 0; i < data.length; i += 4, p++) {
         curGray[p] = (0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]) | 0;
@@ -1159,11 +1164,9 @@
       const invRotMat = rotMat.clone().invert();
       const currentCamOrigin = new THREE.Vector3(state.pose.x, state.pose.y, state.pose.z);
 
-      // 1. Track Existing 2D-3D Anchors via Patch Correlation + Gyro-Predicted Search Center
       const survivingAnchors = [];
       if (prevGrayFrame) {
         for (let anchor of state.activeAnchors) {
-          // Predict pixel location using current gyro orientation & last camera position
           const pred = projectWorldToPixel(anchor.worldPos, currentCamOrigin, invRotMat);
           const searchCenterU = pred ? Math.round(0.6 * anchor.u + 0.4 * pred.u) : Math.round(anchor.u);
           const searchCenterV = pred ? Math.round(0.6 * anchor.v + 0.4 * pred.v) : Math.round(anchor.v);
@@ -1176,7 +1179,6 @@
           const origV = Math.round(anchor.v);
           if (origU < 6 || origU >= PROC_WIDTH - 6 || origV < 6 || origV >= PROC_HEIGHT - 6) continue;
 
-          // 5x5 Sum of Absolute Differences (SAD) block matching within +-6px search window
           let bestU = searchCenterU;
           let bestV = searchCenterV;
           let bestSAD = Infinity;
@@ -1205,7 +1207,6 @@
             }
           }
 
-          // Reject poor patch matches (average intensity error > 22)
           if (bestSAD / 25.0 < 22.0) {
             anchor.prevU = anchor.u;
             anchor.prevV = anchor.v;
@@ -1228,11 +1229,9 @@
 
       state.activeAnchors = survivingAnchors;
 
-      // 2. Solve Camera Translation via Map-to-Frame PnP Gauss-Newton
       if (state.activeAnchors.length >= 5) {
         const pnpResult = solvePnPTranslationGaussNewton(state.activeAnchors, currentCamOrigin, rotMat, invRotMat);
         if (pnpResult && pnpResult.rmse < 24.0) {
-          // Smoothly apply solved translation with outlier jump guard
           const jumpDist = pnpResult.camPos.distanceTo(currentCamOrigin);
           if (jumpDist < 0.45) {
             state.pose.x = state.pose.x * 0.25 + pnpResult.camPos.x * 0.75;
@@ -1251,7 +1250,6 @@
 
       const updatedCamOrigin = new THREE.Vector3(state.pose.x, state.pose.y, state.pose.z);
 
-      // 3. Refine Anchor Depths via Multi-View Stereo Ray-Ray Triangulation
       for (let anchor of state.activeAnchors) {
         const baseline = anchor.birthOrigin.distanceTo(updatedCamOrigin);
         if (!anchor.isTriangulated && baseline >= 0.08 && anchor.age >= 4) {
@@ -1264,7 +1262,6 @@
               anchor.worldPos.copy(triPt);
               anchor.isTriangulated = true;
 
-              // Commit to persistent RGB point cloud if not duplicated
               const isDup = state.triangulatedMapPoints.some(p => p.position.distanceTo(triPt) < 0.05);
               if (!isDup && state.triangulatedMapPoints.length < 4000) {
                 state.triangulatedMapPoints.push({
@@ -1277,7 +1274,6 @@
         }
       }
 
-      // 4. Dynamic Keyframe Map Expansion when Anchor Count Drops or Camera Moves Into New Scene
       const movedFromKF = Math.hypot(
         state.pose.x - state.lastKeyframePose.x,
         state.pose.y - state.lastKeyframePose.y,
@@ -1295,7 +1291,6 @@
 
           const worldRay = pixelToWorldRay(c.u, c.v, rotMat);
 
-          // Check if a nearby triangulated 3D point already exists along this sightline (re-localization!)
           let matchedExisting3D = null;
           let bestRayDist = 0.08;
           for (let mp of state.triangulatedMapPoints) {
@@ -1310,7 +1305,6 @@
             }
           }
 
-          // Initialize with existing 3D map point or local depth prior (1.6m) until stereo baseline >= 8cm
           const initialWorldPos = matchedExisting3D
             ? matchedExisting3D
             : updatedCamOrigin.clone().addScaledVector(worldRay, 1.6);
@@ -1348,7 +1342,6 @@
         }
       }
 
-      // 5. Update Odometry Distance, Trajectory & HUD Readouts
       const stepDist = Math.hypot(
         state.pose.x - state.lastPose.x,
         state.pose.y - state.lastPose.y,
@@ -1375,7 +1368,6 @@
         });
       }
 
-      // Update UI Readouts
       statAnchorsElem.textContent = state.activeAnchors.length;
       statRmseElem.textContent = state.reprojectionRMSE.toFixed(1);
       statTriangulatedElem.textContent = state.triangulatedMapPoints.length;
@@ -1412,7 +1404,6 @@
         const projX = a.projU * scaleX;
         const projY = a.projV * scaleY;
 
-        // 1. Optical Flow History Trail
         if (a.trail.length > 1) {
           overlayCtx.beginPath();
           for (let i = 0; i < a.trail.length; i++) {
@@ -1426,7 +1417,6 @@
           overlayCtx.stroke();
         }
 
-        // 2. Reprojection Residual Error Line (Observed 2D -> Reprojected 3D Anchor)
         overlayCtx.beginPath();
         overlayCtx.moveTo(obsX, obsY);
         overlayCtx.lineTo(projX, projY);
@@ -1434,7 +1424,6 @@
         overlayCtx.lineWidth = 1.5;
         overlayCtx.stroke();
 
-        // 3. Reprojected 3D Anchor Crosshair (Magenta / Yellow)
         overlayCtx.strokeStyle = a.isTriangulated ? '#e879f9' : '#facc15';
         overlayCtx.lineWidth = 1.5;
         const chSize = 5;
@@ -1445,7 +1434,6 @@
         overlayCtx.lineTo(projX, projY + chSize);
         overlayCtx.stroke();
 
-        // 4. Tracked Keypoint Dot (Emerald if 3D-triangulated, Cyan if local anchor)
         overlayCtx.beginPath();
         overlayCtx.arc(obsX, obsY, a.isTriangulated ? 4.5 : 3.5, 0, Math.PI * 2);
         overlayCtx.fillStyle = a.isTriangulated ? '#10b981' : '#22d3ee';
@@ -1473,7 +1461,6 @@
       radarCtx.moveTo(0, cy); radarCtx.lineTo(rw, cy);
       radarCtx.stroke();
 
-      // Plot 3D landmarks on XZ plane
       radarCtx.fillStyle = 'rgba(16, 185, 129, 0.8)';
       const scale = 14;
       state.triangulatedMapPoints.slice(-140).forEach(pt => {
@@ -1482,7 +1469,6 @@
         radarCtx.fillRect(rx - 1, ry - 1, 2, 2);
       });
 
-      // Plot path
       if (state.trajectory3D.length > 1) {
         radarCtx.beginPath();
         radarCtx.strokeStyle = '#38bdf8';
@@ -1496,7 +1482,6 @@
         radarCtx.stroke();
       }
 
-      // Self Heading Arrow
       const selfX = cx + state.pose.x * scale;
       const selfY = cy + state.pose.z * scale;
       const yawRad = THREE.MathUtils.degToRad(state.pose.yaw);
@@ -1549,9 +1534,8 @@
       raycaster.setFromCamera(mouseRaycast, camera3D);
 
       let closestPt = null;
-      let minRayDist = 0.35; // 35cm tap snap tolerance
+      let minRayDist = 0.35;
 
-      // Check triangulated 3D map points first, then active anchors
       for (let mp of state.triangulatedMapPoints) {
         const d = raycaster.ray.distanceToPoint(mp.position);
         if (d < minRayDist) {
@@ -1690,8 +1674,10 @@
     }
 
     // ==========================================
-    // 6. THREE.JS 3D SPATIAL RENDERER
+    // 6. THREE.JS 3D SPATIAL RENDERER & QUATERNION DEVICE TILT
     // ==========================================
+    let levelHorizonRingMesh;
+
     function initThreeJS() {
       const width = window.innerWidth;
       const height = window.innerHeight;
@@ -1750,7 +1736,16 @@
       );
       scene.add(currentMarkerMesh);
 
-      // Smartphone 3D Pose Avatar + Frustum + Heading Arrow
+      // World-Level Horizon Reference Ring (stays flat horizontal at device position for tilt comparison)
+      const horizonGeo = new THREE.RingGeometry(0.30, 0.315, 48);
+      horizonGeo.rotateX(-Math.PI / 2);
+      levelHorizonRingMesh = new THREE.Mesh(
+        horizonGeo,
+        new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.45 })
+      );
+      scene.add(levelHorizonRingMesh);
+
+      // Smartphone 3D Pose Avatar + Frustum + Heading Arrow + Gold Attitude Ring
       cameraAvatarGroup = new THREE.Group();
 
       const phoneBody = new THREE.Mesh(
@@ -1765,6 +1760,15 @@
       );
       phoneScreen.position.z = 0.014;
       cameraAvatarGroup.add(phoneScreen);
+
+      // Gold Attitude Ring attached to device so tilt angle against the white horizon ring is clearly visible
+      const attitudeGeo = new THREE.RingGeometry(0.27, 0.295, 48);
+      attitudeGeo.rotateX(-Math.PI / 2);
+      const attitudeMesh = new THREE.Mesh(
+        attitudeGeo,
+        new THREE.MeshBasicMaterial({ color: 0xfbbf24, side: THREE.DoubleSide, transparent: true, opacity: 0.9 })
+      );
+      cameraAvatarGroup.add(attitudeMesh);
 
       // Camera Field-Of-View Frustum Cone pointing along -Z
       const frustumGeo = new THREE.ConeGeometry(0.42, 0.55, 4);
@@ -1801,13 +1805,12 @@
       if (!scene || !renderer3D) return;
 
       cameraAvatarGroup.position.set(state.pose.x, state.pose.y, state.pose.z);
-      const euler = new THREE.Euler(
-        THREE.MathUtils.degToRad(state.pose.pitch),
-        THREE.MathUtils.degToRad(state.pose.yaw),
-        THREE.MathUtils.degToRad(state.pose.roll),
-        'YXZ'
-      );
-      cameraAvatarGroup.quaternion.setFromEuler(euler);
+      // Apply gimbal-lock-free 3D Quaternion tilt to the device avatar
+      cameraAvatarGroup.quaternion.copy(state.avatarQuaternion);
+
+      if (levelHorizonRingMesh) {
+        levelHorizonRingMesh.position.set(state.pose.x, state.pose.y, state.pose.z);
+      }
       currentMarkerMesh.position.set(state.pose.x, state.pose.y, state.pose.z);
 
       // Update Volumetric Ribbon Trajectory & Floor Drop-Lines
@@ -1957,7 +1960,7 @@
       const h = trajCanvas2D.height;
       const cx = w * 0.5;
       const cy = h * 0.5;
-      const scale = 32; // 32px = 1.0m
+      const scale = 32;
 
       trajCtx2D.clearRect(0, 0, w, h);
 
@@ -1970,7 +1973,6 @@
         trajCtx2D.beginPath(); trajCtx2D.moveTo(0, y); trajCtx2D.lineTo(w, y); trajCtx2D.stroke();
       }
 
-      // Origin circle
       trajCtx2D.strokeStyle = '#38bdf8';
       trajCtx2D.beginPath();
       trajCtx2D.arc(cx, cy, 4, 0, Math.PI * 2);
@@ -2042,6 +2044,8 @@
       state.pose = { x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 0 };
       state.lastPose = { x: 0, y: 0, z: 0 };
       state.sensor.initAlpha = null;
+      state.yawCalibrationQuat = null;
+      state.avatarQuaternion.identity();
       state.totalDistance = 0;
       state.reprojectionRMSE = 0;
       state.lockedAnchorCount = 0;

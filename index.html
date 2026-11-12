@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>iPhone Visual SLAM - 3D Tilt & Spatial Measurement (v2026.11.12-1458)</title>
+  <title>iPhone Visual SLAM - 3D Tilt & Spatial Measurement (v2026.11.12-1508)</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Three.js for 3D Spatial Rendering & Raycasting -->
@@ -81,7 +81,7 @@
           <h1 class="text-[10px] font-bold tracking-wider uppercase text-sky-400">6DoF Visual SLAM</h1>
           <!-- Permanent Build Version Badge -->
           <span id="app-build-ver" class="px-1.5 py-0.5 rounded text-[8px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-400/50 shadow-sm">
-            v2026.11.12-1458
+            v2026.11.12-1508
           </span>
         </div>
         <div id="status-text" class="text-[11px] font-bold text-slate-100 mt-0.5 truncate max-w-[165px]">
@@ -386,7 +386,7 @@
           <h2 class="text-base font-bold text-white flex items-center gap-2">
             <i class="fa-solid fa-compass text-fuchsia-400"></i> 6DoF Spatial Visual SLAM
           </h2>
-          <span class="text-[10px] font-mono text-cyan-300 font-bold">ビルドバージョン: v2026.11.12-1458</span>
+          <span class="text-[10px] font-mono text-cyan-300 font-bold">ビルドバージョン: v2026.11.12-1508</span>
         </div>
         <button id="btn-close-modal" class="p-2 text-slate-400 hover:text-white">
           <i class="fa-solid fa-xmark text-xl"></i>
@@ -422,9 +422,9 @@
   <script>
     /**
      * iPhone Visual SLAM with True 3D Quaternion Device Tilt & 3D Spatial Measurement
-     * Version: v2026.11.12-1458
+     * Version: v2026.11.12-1508
      */
-    const APP_BUILD_VERSION = "v2026.11.12-1458";
+    const APP_BUILD_VERSION = "v2026.11.12-1508";
 
     // Calibrated Pinhole Intrinsics (iPhone Rear Wide ~68 deg horizontal FOV)
     const PROC_WIDTH = 240;
@@ -433,6 +433,8 @@
     const FOCAL_PX = (PROC_WIDTH * 0.5) / Math.tan((H_FOV_DEG * 0.5 * Math.PI) / 180.0);
     const CX = PROC_WIDTH * 0.5;
     const CY = PROC_HEIGHT * 0.5;
+    const TAN_HALF_FOV_X = (PROC_WIDTH * 0.5) / FOCAL_PX;
+    const TAN_HALF_FOV_Y = (PROC_HEIGHT * 0.5) / FOCAL_PX;
 
     const state = {
       isCameraReady: false,
@@ -454,6 +456,7 @@
       },
       // Exact 3D World Quaternion representing the iPhone's physical orientation in Three.js Y-up space
       deviceWorldQuaternion: new THREE.Quaternion(),
+      prevFrameQuaternion: null,
 
       // Optical-flow fallback orientation angles (when gyroscope is unavailable/denied)
       opticalFallback: {
@@ -900,10 +903,7 @@
       if (state.sensor.zeroYawQuatInv === null) {
         const forwardVec = new THREE.Vector3(0, 0, -1).applyQuaternion(rawWorldQuat);
         const initialYawRad = Math.atan2(-forwardVec.x, -forwardVec.z);
-        state.sensor.zeroYawQuatInv = new THREE.Quaternion().setFromAxisAngle(_worldUp, -initialYawRad);
-      }
-
-      // Apply horizontal heading zero calibration + subtle visual PnP drift correction
+      // Combine horizontal heading zero calibration + subtle visual PnP drift correction
       const calibratedQuat = state.sensor.zeroYawQuatInv.clone().multiply(rawWorldQuat);
       const visualDeltaEuler = new THREE.Euler(
         THREE.MathUtils.degToRad(state.visualRotOffset.pitch),
@@ -915,6 +915,9 @@
       calibratedQuat.premultiply(visualDeltaQuat).normalize();
 
       state.deviceWorldQuaternion.copy(calibratedQuat);
+      if (!state.prevFrameQuaternion) {
+        state.prevFrameQuaternion = calibratedQuat.clone();
+      }
       syncEulerReadoutFromQuaternion(calibratedQuat);
       statGyroModeElem.textContent = "IMU+PnP";
     }
@@ -988,128 +991,9 @@
 
         if (!threeViewport.contains(threeCanvasContainer)) {
           threeViewport.insertBefore(threeCanvasContainer, threeViewport.firstChild);
-        }
-        pipContent.innerHTML = '';
-        pipContent.appendChild(videoElem);
-        viewModeLabel.textContent = "3Dマップ";
-      } else {
-        cameraViewport.className = "absolute top-0 left-0 right-0 h-1/2 z-10 opacity-100 pointer-events-auto border-b border-sky-400/40 transition-all duration-300";
-        threeViewport.className = "absolute bottom-0 left-0 right-0 h-1/2 z-10 opacity-100 pointer-events-auto transition-all duration-300";
-        pipWindow.classList.add('hidden');
-
-        if (!cameraViewport.contains(videoElem)) {
-          cameraViewport.insertBefore(videoElem, overlayCanvas);
-        }
-        if (!threeViewport.contains(threeCanvasContainer)) {
-          threeViewport.insertBefore(threeCanvasContainer, threeViewport.firstChild);
-        }
-        viewModeLabel.textContent = "2画面分割";
-      }
-
-      setTimeout(() => {
-        resizeCanvases();
-        ensureVideoPlaying();
-      }, 50);
-    }
-
-    // ==========================================
-    // 3. 6DOF MAP-TO-FRAME PNP SLAM ALGORITHM
-    // ==========================================
-    function mainLoop() {
-      const now = performance.now();
-      const dt = Math.min(0.1, (now - state.lastFrameTime) / 1000);
-      state.lastFrameTime = now;
-
-      if (state.isTracking && videoElem.readyState >= 2) {
-        procCtx.drawImage(videoElem, 0, 0, PROC_WIDTH, PROC_HEIGHT);
-        const frameData = procCtx.getImageData(0, 0, PROC_WIDTH, PROC_HEIGHT);
-        run6DoFVisualSLAM(frameData, dt);
-      }
-
-      render2DReprojectionAndAttitudeHUD();
-      render2DRadarMap();
-      renderTrajectoryCanvases();
-      update3DScene();
-
-      state.frameCount++;
-      if (now - state.lastFpsUpdate >= 500) {
-        state.fps = Math.round((state.frameCount * 1000) / (now - state.lastFpsUpdate));
-        statFpsElem.textContent = state.fps;
-        state.frameCount = 0;
-        state.lastFpsUpdate = now;
-      }
-
-      requestAnimationFrame(mainLoop);
-    }
-
-    function getLuminance(data, idx) {
-      return 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
-    }
-
-    /**
-     * High-Contrast Shi-Tomasi Corner Detector with Uniform Grid-NMS
-     */
-    function extractShiTomasiCorners(data, maxCorners = 48) {
-      const corners = [];
-      const rows = 5;
-      const cols = 6;
-      const cellW = Math.floor(PROC_WIDTH / cols);
-      const cellH = Math.floor(PROC_HEIGHT / rows);
-
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          let bestScore = -Infinity;
-          let bestCorner = null;
-
-          const x0 = c * cellW + 8;
-          const x1 = (c + 1) * cellW - 8;
-          const y0 = r * cellH + 8;
-          const y1 = (r + 1) * cellH - 8;
-
-          for (let y = y0; y < y1; y += 3) {
-            for (let x = x0; x < x1; x += 3) {
-              let Ixx = 0, Iyy = 0, Ixy = 0;
-              for (let dy = -1; dy <= 1; dy++) {
-                for (let dx = -1; dx <= 1; dx++) {
-                  const gx = (getLuminance(data, ((y + dy) * PROC_WIDTH + (x + dx + 1)) * 4) -
-                              getLuminance(data, ((y + dy) * PROC_WIDTH + (x + dx - 1)) * 4)) * 0.5;
-                  const gy = (getLuminance(data, ((y + dy + 1) * PROC_WIDTH + (x + dx)) * 4) -
-                              getLuminance(data, ((y + dy - 1) * PROC_WIDTH + (x + dx)) * 4)) * 0.5;
-                  Ixx += gx * gx;
-                  Iyy += gy * gy;
-                  Ixy += gx * gy;
-                }
-              }
-              const trace = Ixx + Iyy;
-              const detTerm = Math.sqrt(Math.max(0, (Ixx - Iyy) * (Ixx - Iyy) + 4 * Ixy * Ixy));
-              const lambdaMin = (trace - detTerm) * 0.5;
-
-              if (lambdaMin > 220 && lambdaMin > bestScore) {
-                const cIdx = (y * PROC_WIDTH + x) * 4;
-                bestScore = lambdaMin;
-                bestCorner = {
-                  u: x,
-                  v: y,
-                  score: lambdaMin,
-                  r: data[cIdx] / 255.0,
-                  g: data[cIdx + 1] / 255.0,
-                  b: data[cIdx + 2] / 255.0
-                };
-              }
-            }
-          }
-          if (bestCorner) corners.push(bestCorner);
-        }
-      }
-      return corners.sort((a, b) => b.score - a.score).slice(0, maxCorners);
-    }
-
-    function getCameraRotationMatrixFromQuaternion(quat) {
-      return new THREE.Matrix4().makeRotationFromQuaternion(quat);
-    }
-
-    function projectWorldToPixel(worldPt, camPos, invRotMat) {
-      const rel = new THREE.Vector3().subVectors(worldPt, camPos).applyMatrix4(invRotMat);
+    function projectWorldToPixel(worldPt, camPos, worldToCamQuat) {
+      // Unified World-to-Camera Quaternion Transform: P_c = q_curr^-1 * (P_w - T_w)
+      const rel = new THREE.Vector3().subVectors(worldPt, camPos).applyQuaternion(worldToCamQuat);
       const depth = -rel.z;
       if (depth < 0.15) return null;
 
@@ -1118,13 +1002,13 @@
       return { u, v, depth };
     }
 
-    function pixelToWorldRay(u, v, rotMat) {
+    function pixelToWorldRay(u, v, camToWorldQuat) {
       const rayCam = new THREE.Vector3(
         (u - CX) / FOCAL_PX,
         -(v - CY) / FOCAL_PX,
         -1.0
       ).normalize();
-      return rayCam.applyMatrix4(rotMat).normalize();
+      return rayCam.applyQuaternion(camToWorldQuat).normalize();
     }
 
     function triangulateStereoRays(orig0, ray0, orig1, ray1) {
@@ -1134,23 +1018,25 @@
       const e = ray1.dot(w0);
 
       const denom = 1.0 - b * b;
-      if (denom < 0.0049) return null;
+      // Minimum parallax ~3.0 deg (sin^2(3 deg) ~ 0.00274)
+      if (denom < 0.0027) return null;
 
       const s = (b * e - d) / denom;
       const t = (e - b * d) / denom;
 
-      if (s < 0.3 || s > 6.0 || t < 0.3 || t > 6.0) return null;
+      if (s < 0.25 || s > 7.5 || t < 0.25 || t > 7.5) return null;
 
       const p0 = new THREE.Vector3().copy(orig0).addScaledVector(ray0, s);
       const p1 = new THREE.Vector3().copy(orig1).addScaledVector(ray1, t);
 
-      if (p0.distanceTo(p1) > 0.05) return null;
+      if (p0.distanceTo(p1) > 0.07) return null;
 
       return new THREE.Vector3().addVectors(p0, p1).multiplyScalar(0.5);
     }
 
     /**
-     * Map-to-Frame PnP 6DoF Gauss-Newton Solver
+     * Unified Map-to-Frame PnP 6DoF Gauss-Newton Solver
+     * Minimizes 2D reprojection residuals using P_c = q_curr^-1 * (P_w - T_w)
      */
     function solvePnP6DoFGaussNewton(anchors, initialCamPos, baseQuat) {
       if (anchors.length < 4) return null;
@@ -1160,15 +1046,16 @@
       let dPitch = 0;
 
       const maxIters = 6;
-      const huberDelta = 12.0;
+      const huberDelta = 14.0;
 
       for (let iter = 0; iter < maxIters; iter++) {
         const deltaQ = new THREE.Quaternion().setFromEuler(
           new THREE.Euler(THREE.MathUtils.degToRad(dPitch), THREE.MathUtils.degToRad(dYaw), 0, 'YXZ')
         );
-        const curQuat = deltaQ.multiply(baseQuat);
-        const rotMat = getCameraRotationMatrixFromQuaternion(curQuat);
-        const invRotMat = rotMat.clone().invert();
+        const curQuat = deltaQ.multiply(baseQuat).normalize();
+        const worldToCamQuat = curQuat.clone().invert();
+        const worldToCamMat = new THREE.Matrix4().makeRotationFromQuaternion(worldToCamQuat);
+        const e = worldToCamMat.elements;
 
         let H00 = 1e-3, H01 = 0, H02 = 0;
         let H11 = 1e-3, H12 = 0;
@@ -1181,9 +1068,9 @@
 
         for (let i = 0; i < anchors.length; i++) {
           const a = anchors[i];
-          const rel = new THREE.Vector3().subVectors(a.worldPos, camPos).applyMatrix4(invRotMat);
+          const rel = new THREE.Vector3().subVectors(a.worldPos, camPos).applyQuaternion(worldToCamQuat);
           const Z = -rel.z;
-          if (Z < 0.25 || Z > 8.0) continue;
+          if (Z < 0.20 || Z > 9.0) continue;
 
           const uPred = CX + FOCAL_PX * (rel.x / Z);
           const vPred = CY - FOCAL_PX * (rel.y / Z);
@@ -1194,25 +1081,29 @@
 
           const weight = errNorm <= huberDelta ? 1.0 : (huberDelta / errNorm);
 
+          // Jacobian of (uPred, vPred) wrt camera-space point P_c = (xc, yc, zc) where Z = -zc:
+          // uPred = CX + f * xc / (-zc) => du/dxc = -f/Z, du/dzc = -f * xc / Z^2
+          // vPred = CY - f * yc / (-zc) => dv/dyc = +f/Z, dv/dzc = +f * yc / Z^2
+          // Since P_c = R_wc * (P_w - T_w), dP_c / dT_w = -R_wc (flipped signs!)
           const invZ = 1.0 / Z;
           const invZ2 = invZ * invZ;
 
-          const ju_xc = -FOCAL_PX * invZ;
+          const ju_xc = FOCAL_PX * invZ;
           const ju_yc = 0;
-          const ju_zc = -FOCAL_PX * rel.x * invZ2;
+          const ju_zc = FOCAL_PX * rel.x * invZ2;
 
           const jv_xc = 0;
-          const jv_yc = FOCAL_PX * invZ;
-          const jv_zc = FOCAL_PX * rel.y * invZ2;
+          const jv_yc = -FOCAL_PX * invZ;
+          const jv_zc = -FOCAL_PX * rel.y * invZ2;
 
-          const e = rotMat.elements;
-          const Ju0 = ju_xc * e[0] + ju_yc * e[4] + ju_zc * e[8];
-          const Ju1 = ju_xc * e[1] + ju_yc * e[5] + ju_zc * e[9];
-          const Ju2 = ju_xc * e[2] + ju_yc * e[6] + ju_zc * e[10];
+          // Chain rule with R_wc (column-major in Three.js Matrix4)
+          const Ju0 = ju_xc * e[0] + ju_yc * e[1] + ju_zc * e[2];
+          const Ju1 = ju_xc * e[4] + ju_yc * e[5] + ju_zc * e[6];
+          const Ju2 = ju_xc * e[8] + ju_yc * e[9] + ju_zc * e[10];
 
-          const Jv0 = jv_xc * e[0] + jv_yc * e[4] + jv_zc * e[8];
-          const Jv1 = jv_xc * e[1] + jv_yc * e[5] + jv_zc * e[9];
-          const Jv2 = jv_xc * e[2] + jv_yc * e[6] + jv_zc * e[10];
+          const Jv0 = jv_xc * e[0] + jv_yc * e[1] + jv_zc * e[2];
+          const Jv1 = jv_xc * e[4] + jv_yc * e[5] + jv_zc * e[6];
+          const Jv2 = jv_xc * e[8] + jv_yc * e[9] + jv_zc * e[10];
 
           H00 += weight * (Ju0 * Ju0 + Jv0 * Jv0);
           H01 += weight * (Ju0 * Ju1 + Jv0 * Jv1);
@@ -1262,15 +1153,15 @@
         );
 
         const stepNorm = Math.hypot(dx, dy, dz);
-        const maxStep = 0.25;
+        const maxStep = 0.30;
         const scale = stepNorm > maxStep ? (maxStep / stepNorm) : 1.0;
 
         camPos.x += dx * scale;
         camPos.y += dy * scale;
         camPos.z += dz * scale;
 
-        dYaw += Math.max(-0.4, Math.min(0.4, (yawNum / yawDen) * 0.25));
-        dPitch += Math.max(-0.4, Math.min(0.4, (pitchNum / pitchDen) * 0.25));
+        dYaw += Math.max(-0.35, Math.min(0.35, (yawNum / yawDen) * 0.2));
+        dPitch += Math.max(-0.35, Math.min(0.35, (pitchNum / pitchDen) * 0.2));
 
         if (stepNorm < 1e-4) break;
       }
@@ -1278,13 +1169,13 @@
       const finalDeltaQ = new THREE.Quaternion().setFromEuler(
         new THREE.Euler(THREE.MathUtils.degToRad(dPitch), THREE.MathUtils.degToRad(dYaw), 0, 'YXZ')
       );
-      const finalQuat = finalDeltaQ.multiply(baseQuat);
-      const finalInvRot = getCameraRotationMatrixFromQuaternion(finalQuat).invert();
+      const finalQuat = finalDeltaQ.multiply(baseQuat).normalize();
+      const finalWorldToCamQuat = finalQuat.clone().invert();
 
       let sumSqErr = 0;
       let validCount = 0;
       for (let a of anchors) {
-        const proj = projectWorldToPixel(a.worldPos, camPos, finalInvRot);
+        const proj = projectWorldToPixel(a.worldPos, camPos, finalWorldToCamQuat);
         if (proj) {
           a.projU = proj.u;
           a.projV = proj.v;
@@ -1306,6 +1197,7 @@
 
     /**
      * Main 6DoF Visual-Inertial SLAM Step
+     * Fixes translation estimation via Exact Quaternion Flow De-rotation + Unified PnP
      */
     function run6DoFVisualSLAM(frameData, dt) {
       const data = frameData.data;
@@ -1321,43 +1213,74 @@
         statGyroModeElem.textContent = "光学推定";
       }
 
-      const rotMat = getCameraRotationMatrixFromQuaternion(state.deviceWorldQuaternion);
-      const invRotMat = rotMat.clone().invert();
+      const qCurr = state.deviceWorldQuaternion.clone().normalize();
+      const qPrev = state.prevFrameQuaternion ? state.prevFrameQuaternion.clone().normalize() : qCurr.clone();
+
+      // Exact relative camera rotation from previous frame to current frame:
+      // A ray in prev camera coords v_prev transforms to current camera coords via: v_curr = (q_curr^-1 * q_prev) * v_prev
+      const dqPrevToCurr = qCurr.clone().invert().multiply(qPrev);
+
+      const worldToCamQuat = qCurr.clone().invert();
       const currentCamOrigin = new THREE.Vector3(state.pose.x, state.pose.y, state.pose.z);
 
-      // 1. Track Existing 2D-3D Anchors via Block Matching
+      // 1. Track Existing 2D-3D Anchors via Block Matching + Exact Quaternion Rotational Prediction
       const survivingAnchors = [];
       let flowSumU = 0, flowSumV = 0, flowCount = 0;
+      const residualTranslationalFlows = [];
 
       if (prevGrayFrame) {
         for (let anchor of state.activeAnchors) {
-          const pred = projectWorldToPixel(anchor.worldPos, currentCamOrigin, invRotMat);
-          const searchCenterU = (gyroFresh && pred) ? Math.round(0.55 * anchor.u + 0.45 * pred.u) : Math.round(anchor.u);
-          const searchCenterV = (gyroFresh && pred) ? Math.round(0.55 * anchor.v + 0.45 * pred.v) : Math.round(anchor.v);
+          const origU = anchor.u;
+          const origV = anchor.v;
+
+          // Back-project normalized pixel coordinates (nx, ny) to 3D unit camera ray
+          const nx = (origU - CX) / (PROC_WIDTH * 0.5);
+          const ny = (origV - CY) / (PROC_HEIGHT * 0.5);
+          const rayPrevCam = new THREE.Vector3(
+            nx * TAN_HALF_FOV_X,
+            -ny * TAN_HALF_FOV_Y,
+            -1.0
+          ).normalize();
+
+          // Rotate ray by dqPrevToCurr to isolate exact pixel shift caused purely by device rotation/tilt
+          const rayRotCam = rayPrevCam.clone().applyQuaternion(dqPrevToCurr);
+          let rotPredU = origU;
+          let rotPredV = origV;
+          if (rayRotCam.z < -0.1) {
+            rotPredU = CX + FOCAL_PX * (rayRotCam.x / -rayRotCam.z);
+            rotPredV = CY - FOCAL_PX * (rayRotCam.y / -rayRotCam.z);
+          }
+
+          const rotFlowU = gyroFresh ? (rotPredU - origU) : 0;
+          const rotFlowV = gyroFresh ? (rotPredV - origV) : 0;
+
+          // Center block-matching search window at the rotation-predicted pixel location
+          const searchCenterU = Math.round(origU + rotFlowU);
+          const searchCenterV = Math.round(origV + rotFlowV);
 
           if (searchCenterU < 8 || searchCenterU >= PROC_WIDTH - 8 || searchCenterV < 8 || searchCenterV >= PROC_HEIGHT - 8) {
             continue;
           }
 
-          const origU = Math.round(anchor.u);
-          const origV = Math.round(anchor.v);
-          if (origU < 6 || origU >= PROC_WIDTH - 6 || origV < 6 || origV >= PROC_HEIGHT - 6) continue;
+          const patchCenterU = Math.round(origU);
+          const patchCenterV = Math.round(origV);
+          if (patchCenterU < 6 || patchCenterU >= PROC_WIDTH - 6 || patchCenterV < 6 || patchCenterV >= PROC_HEIGHT - 6) continue;
 
           let bestU = searchCenterU;
           let bestV = searchCenterV;
           let bestSAD = Infinity;
 
-          for (let sv = -6; sv <= 6; sv += 1) {
+          for (let sv = -8; sv <= 8; sv += 1) {
             const candV = searchCenterV + sv;
             if (candV < 5 || candV >= PROC_HEIGHT - 5) continue;
 
-            for (let su = -6; su <= 6; su += 1) {
+            for (let su = -8; su <= 8; su += 1) {
               const candU = searchCenterU + su;
               if (candU < 5 || candU >= PROC_WIDTH - 5) continue;
 
               let sad = 0;
               for (let py = -2; py <= 2; py++) {
-                const rowPrev = (origV + py) * PROC_WIDTH + origU;
+                const rowPrev = (patchCenterV + py) * PROC_WIDTH + patchCenterU;
                 const rowCur = (candV + py) * PROC_WIDTH + candU;
                 for (let px = -2; px <= 2; px++) {
                   sad += Math.abs(prevGrayFrame[rowPrev + px] - curGray[rowCur + px]);
@@ -1371,13 +1294,31 @@
             }
           }
 
-          if (bestSAD / 25.0 < 22.0) {
-            flowSumU += (bestU - anchor.u);
-            flowSumV += (bestV - anchor.v);
+          if (bestSAD / 25.0 < 24.0) {
+            const obsDu = bestU - origU;
+            const obsDv = bestV - origV;
+            flowSumU += obsDu;
+            flowSumV += obsDv;
             flowCount++;
 
-            anchor.prevU = anchor.u;
-            anchor.prevV = anchor.v;
+            // Residual translational optical flow after exact quaternion de-rotation
+            const transDu = obsDu - rotFlowU;
+            const transDv = obsDv - rotFlowV;
+
+            // Estimate depth from current 3D anchor position relative to camera
+            const relCam = new THREE.Vector3().subVectors(anchor.worldPos, currentCamOrigin).applyQuaternion(worldToCamQuat);
+            const depthEst = Math.max(0.4, Math.min(5.0, -relCam.z > 0.2 ? -relCam.z : 1.5));
+
+            residualTranslationalFlows.push({
+              du: transDu,
+              dv: transDv,
+              depth: depthEst,
+              normX: (bestU - CX) / FOCAL_PX,
+              normY: -(bestV - CY) / FOCAL_PX
+            });
+
+            anchor.prevU = origU;
+            anchor.prevV = origV;
             anchor.u = bestU;
             anchor.v = bestV;
             anchor.age++;
@@ -1419,43 +1360,104 @@
         syncEulerReadoutFromQuaternion(fallbackQuat);
       }
 
-      // 2. Solve 6DoF Camera Pose via Map-to-Frame PnP Gauss-Newton
+      // 2. Direct Translational Odometry Step from De-rotated Residual Flow
+      const priorCamPos = currentCamOrigin.clone();
+      if (residualTranslationalFlows.length >= 4) {
+        // Median consensus on lateral/vertical de-rotated optical flow + radial expansion/contraction for forward Z
+        const vxSamples = [];
+        const vySamples = [];
+        const vzSamples = [];
+
+        for (let f of residualTranslationalFlows) {
+          // Moving camera right (+X) causes features to shift left (-du): dX_cam = -(du / f) * Z
+          // Moving camera up (+Y) causes features to shift down (+dv): dY_cam = +(dv / f) * Z
+          const vxCam = -(f.du / FOCAL_PX) * f.depth;
+          const vyCam = (f.dv / FOCAL_PX) * f.depth;
+          vxSamples.push(vxCam);
+          vySamples.push(vyCam);
+
+          // Radial divergence from optical center estimates forward/backward translation (-Z is forward)
+          const r2 = f.normX * f.normX + f.normY * f.normY;
+          if (r2 > 0.025) {
+            const radialDot = f.normX * (f.du / FOCAL_PX) + f.normY * (-f.dv / FOCAL_PX);
+            // Expanding outward (radialDot > 0) means camera moved forward (-Z_cam)
+            const vzCam = -(radialDot / r2) * f.depth * 0.65;
+            vzSamples.push(vzCam);
+          }
+        }
+
+        vxSamples.sort((a, b) => a - b);
+        vySamples.sort((a, b) => a - b);
+        const midIdx = Math.floor(vxSamples.length * 0.5);
+        let medVx = vxSamples[midIdx];
+        let medVy = vySamples[midIdx];
+        let medVz = 0;
+
+        if (vzSamples.length >= 3) {
+          vzSamples.sort((a, b) => a - b);
+          medVz = vzSamples[Math.floor(vzSamples.length * 0.5)];
+        }
+
+        // Deadband filter against micro-jitter
+        if (Math.abs(medVx) < 0.002) medVx = 0;
+        if (Math.abs(medVy) < 0.002) medVy = 0;
+        if (Math.abs(medVz) < 0.003) medVz = 0;
+
+        // Rotate camera-space displacement into Three.js World Space using qCurr
+        const camStep = new THREE.Vector3(medVx, medVy, medVz);
+        if (camStep.length() > 0.18) camStep.setLength(0.18);
+        const worldStep = camStep.applyQuaternion(qCurr);
+
+        priorCamPos.add(worldStep);
+      }
+
+      // 3. Refine 6DoF Pose via Unified Map-to-Frame PnP Gauss-Newton
       if (state.activeAnchors.length >= 5) {
-        const pnpResult = solvePnP6DoFGaussNewton(state.activeAnchors, currentCamOrigin, state.deviceWorldQuaternion);
-        if (pnpResult && pnpResult.rmse < 24.0) {
-          const jumpDist = pnpResult.camPos.distanceTo(currentCamOrigin);
+        const pnpResult = solvePnP6DoFGaussNewton(state.activeAnchors, priorCamPos, qCurr);
+        if (pnpResult && pnpResult.rmse < 28.0) {
+          const jumpDist = pnpResult.camPos.distanceTo(priorCamPos);
           if (jumpDist < 0.45) {
-            state.pose.x = state.pose.x * 0.25 + pnpResult.camPos.x * 0.75;
-            state.pose.y = state.pose.y * 0.25 + pnpResult.camPos.y * 0.75;
-            state.pose.z = state.pose.z * 0.25 + pnpResult.camPos.z * 0.75;
+            // Blend de-rotated odometry prior with PnP map-locked refinement
+            state.pose.x = priorCamPos.x * 0.35 + pnpResult.camPos.x * 0.65;
+            state.pose.y = priorCamPos.y * 0.35 + pnpResult.camPos.y * 0.65;
+            state.pose.z = priorCamPos.z * 0.35 + pnpResult.camPos.z * 0.65;
 
             if (gyroFresh) {
-              state.visualRotOffset.yaw = Math.max(-10, Math.min(10, state.visualRotOffset.yaw + pnpResult.yawDelta * 0.3));
-              state.visualRotOffset.pitch = Math.max(-8, Math.min(8, state.visualRotOffset.pitch + pnpResult.pitchDelta * 0.3));
+              state.visualRotOffset.yaw = Math.max(-8, Math.min(8, state.visualRotOffset.yaw + pnpResult.yawDelta * 0.25));
+              state.visualRotOffset.pitch = Math.max(-6, Math.min(6, state.visualRotOffset.pitch + pnpResult.pitchDelta * 0.25));
             }
 
             state.reprojectionRMSE = pnpResult.rmse;
             state.lockedAnchorCount = pnpResult.validCount;
             setStatus(`6DoF 空間ロック中 (${pnpResult.validCount}点)`, 'bg-emerald-500');
+          } else {
+            state.pose.x = priorCamPos.x;
+            state.pose.y = priorCamPos.y;
+            state.pose.z = priorCamPos.z;
           }
         } else {
+          state.pose.x = priorCamPos.x;
+          state.pose.y = priorCamPos.y;
+          state.pose.z = priorCamPos.z;
           setStatus('空間アンカー再照合中...', 'bg-amber-500');
         }
       } else {
+        state.pose.x = priorCamPos.x;
+        state.pose.y = priorCamPos.y;
+        state.pose.z = priorCamPos.z;
         setStatus('基準3D空間アンカー構築中...', 'bg-sky-500');
       }
 
       const updatedCamOrigin = new THREE.Vector3(state.pose.x, state.pose.y, state.pose.z);
-      const updatedRotMat = getCameraRotationMatrixFromQuaternion(state.deviceWorldQuaternion);
 
-      // 3. Multi-View Stereo Ray-Ray Triangulation for Depth Refinement
+      // 4. Multi-View Stereo Ray-Ray Triangulation for Depth Refinement
       for (let anchor of state.activeAnchors) {
         const baseline = anchor.birthOrigin.distanceTo(updatedCamOrigin);
-        if (!anchor.isTriangulated && baseline >= 0.08 && anchor.age >= 4) {
-          const curRay = pixelToWorldRay(anchor.u, anchor.v, updatedRotMat);
+        if (!anchor.isTriangulated && baseline >= 0.06 && anchor.age >= 3) {
+          const curRay = pixelToWorldRay(anchor.u, anchor.v, qCurr);
           const parallaxAngle = anchor.birthRay.angleTo(curRay);
 
-          if (parallaxAngle >= (4.0 * Math.PI) / 180.0) {
+          if (parallaxAngle >= (3.0 * Math.PI) / 180.0) {
             const triPt = triangulateStereoRays(anchor.birthOrigin, anchor.birthRay, updatedCamOrigin, curRay);
             if (triPt) {
               anchor.worldPos.copy(triPt);
@@ -1473,7 +1475,7 @@
         }
       }
 
-      // 4. Keyframe Expansion & Loop Re-localization
+      // 5. Sliding-Window Keyframe Expansion & Loop Re-localization
       const movedFromKF = Math.hypot(
         state.pose.x - state.lastKeyframePose.x,
         state.pose.y - state.lastKeyframePose.y,
@@ -1481,22 +1483,22 @@
       );
       const rotatedFromKF = Math.abs(state.pose.yaw - state.lastKeyframePose.yaw) + Math.abs(state.pose.pitch - state.lastKeyframePose.pitch);
 
-      if (state.activeAnchors.length < 22 || movedFromKF > 0.25 || rotatedFromKF > 18.0) {
-        const freshCorners = extractShiTomasiCorners(data, 44);
+      if (state.activeAnchors.length < 24 || movedFromKF > 0.18 || rotatedFromKF > 15.0) {
+        const freshCorners = extractShiTomasiCorners(data, 46);
         let added = 0;
 
         for (let c of freshCorners) {
-          const tooClose = state.activeAnchors.some(a => Math.hypot(a.u - c.u, a.v - c.v) < 15);
+          const tooClose = state.activeAnchors.some(a => Math.hypot(a.u - c.u, a.v - c.v) < 14);
           if (tooClose) continue;
 
-          const worldRay = pixelToWorldRay(c.u, c.v, updatedRotMat);
+          const worldRay = pixelToWorldRay(c.u, c.v, qCurr);
 
           let matchedExisting3D = null;
-          let bestRayDist = 0.08;
+          let bestRayDist = 0.09;
           for (let mp of state.triangulatedMapPoints) {
             const toPt = new THREE.Vector3().subVectors(mp.position, updatedCamOrigin);
             const projLen = toPt.dot(worldRay);
-            if (projLen > 0.3 && projLen < 6.0) {
+            if (projLen > 0.25 && projLen < 7.0) {
               const perpDist = toPt.sub(worldRay.clone().multiplyScalar(projLen)).length();
               if (perpDist < bestRayDist) {
                 bestRayDist = perpDist;
@@ -1507,7 +1509,7 @@
 
           const initialWorldPos = matchedExisting3D
             ? matchedExisting3D
-            : updatedCamOrigin.clone().addScaledVector(worldRay, 1.6);
+            : updatedCamOrigin.clone().addScaledVector(worldRay, 1.5);
 
           state.activeAnchors.push({
             id: state.nextAnchorId++,
@@ -1527,7 +1529,7 @@
             age: 0
           });
           added++;
-          if (state.activeAnchors.length >= 42) break;
+          if (state.activeAnchors.length >= 44) break;
         }
 
         if (added > 0) {
@@ -1542,7 +1544,7 @@
         }
       }
 
-      // 5. Record 6DoF Trajectory & Update Telemetry
+      // 6. Record 6DoF Trajectory & Update Telemetry
       const stepDist = Math.hypot(
         state.pose.x - state.lastPose.x,
         state.pose.y - state.lastPose.y,
@@ -1559,7 +1561,7 @@
           state.pose.x - state.trajectory3D[state.trajectory3D.length - 1].x,
           state.pose.y - state.trajectory3D[state.trajectory3D.length - 1].y,
           state.pose.z - state.trajectory3D[state.trajectory3D.length - 1].z
-        ) > 0.025
+        ) > 0.02
       ) {
         state.trajectory3D.push({
           x: state.pose.x,
@@ -1585,6 +1587,7 @@
       posZElem.innerHTML = `${state.pose.z.toFixed(2)} <span class="text-[8px] font-normal text-slate-400">m</span>`;
       statDistElem.textContent = `${state.totalDistance.toFixed(2)}m`;
 
+      state.prevFrameQuaternion = qCurr.clone();
       prevGrayFrame = curGray;
     }
 
@@ -2501,6 +2504,7 @@
       state.lastPose = { x: 0, y: 0, z: 0 };
       // Re-calibrate horizontal Yaw to 0° on next orientation event while preserving gravity Pitch/Roll
       state.sensor.zeroYawQuatInv = null;
+      state.prevFrameQuaternion = null;
       if (!state.sensor.isActive) {
         state.deviceWorldQuaternion.identity();
       }

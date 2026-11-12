@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>GPS-less Visual SLAM Map (v2026.11.12-1719)</title>
+  <title>GPS-less Visual SLAM Photo Map (v2026.11.12-1744)</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Three.js for 3D Spatial Rendering -->
@@ -80,7 +80,7 @@
         <div class="flex items-center gap-1.5">
           <span class="text-[11px] font-bold tracking-wider uppercase text-sky-400">Outdoor SLAM Map</span>
           <span id="app-build-ver" class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-400/50">
-            v2026.11.12-1719
+            v2026.11.12-1744
           </span>
         </div>
         <div id="status-text" class="text-xs font-bold text-slate-100 mt-0.5 truncate">
@@ -128,6 +128,7 @@
           <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-sky-400 inline-block"></span>開始</span>
           <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>現在地</span>
           <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-400 inline-block"></span>傾き</span>
+          <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>実写投影</span>
         </div>
       </div>
     </div>
@@ -151,22 +152,22 @@
           <i class="fa-solid fa-location-crosshairs"></i> 現在地 (開始地点基準)
         </span>
         <span class="text-xs text-slate-300 font-mono">
-          総移動距離: <strong id="stat-dist" class="text-white">0.00m</strong>
+          移動距離: <strong id="stat-dist" class="text-white">0.00m</strong>
         </span>
       </div>
 
       <!-- X, Y, Z Coordinates -->
       <div class="grid grid-cols-3 gap-2 text-center font-mono">
         <div class="glass-card py-2 px-1.5 rounded-2xl">
-          <div class="text-[10px] font-semibold text-slate-400">X (東西/左右)</div>
+          <div class="text-[10px] font-semibold text-slate-400">X (左右)</div>
           <div id="pos-x" class="text-base font-extrabold text-sky-300 mt-0.5">0.00<span class="text-[10px] font-normal text-slate-400 ml-0.5">m</span></div>
         </div>
         <div class="glass-card py-2 px-1.5 rounded-2xl">
-          <div class="text-[10px] font-semibold text-slate-400">Y (高低差)</div>
+          <div class="text-[10px] font-semibold text-slate-400">Y (上下)</div>
           <div id="pos-y" class="text-base font-extrabold text-emerald-300 mt-0.5">0.00<span class="text-[10px] font-normal text-slate-400 ml-0.5">m</span></div>
         </div>
         <div class="glass-card py-2 px-1.5 rounded-2xl">
-          <div class="text-[10px] font-semibold text-slate-400">Z (南北/前後)</div>
+          <div class="text-[10px] font-semibold text-slate-400">Z (前後)</div>
           <div id="pos-z" class="text-base font-extrabold text-purple-300 mt-0.5">0.00<span class="text-[10px] font-normal text-slate-400 ml-0.5">m</span></div>
         </div>
       </div>
@@ -174,8 +175,8 @@
       <!-- Yaw, Pitch, Roll Readout -->
       <div class="grid grid-cols-3 gap-2 text-center font-mono text-[11px] text-slate-200">
         <div class="bg-slate-900/75 py-1 rounded-xl border border-white/5">方位: <span id="ori-yaw" class="font-bold text-fuchsia-300">0.0°</span></div>
-        <div class="bg-slate-900/75 py-1 rounded-xl border border-white/5">上下傾き: <span id="ori-pitch" class="font-bold text-amber-300">0.0°</span></div>
-        <div class="bg-slate-900/75 py-1 rounded-xl border border-white/5">左右傾き: <span id="ori-roll" class="font-bold text-cyan-300">0.0°</span></div>
+        <div class="bg-slate-900/75 py-1 rounded-xl border border-white/5">上下: <span id="ori-pitch" class="font-bold text-amber-300">0.0°</span></div>
+        <div class="bg-slate-900/75 py-1 rounded-xl border border-white/5">左右: <span id="ori-roll" class="font-bold text-cyan-300">0.0°</span></div>
       </div>
 
     </div>
@@ -202,15 +203,15 @@
     </button>
   </footer>
 
-  <!-- 2D TOP-DOWN MAP IMAGE PREVIEW & PNG EXPORT MODAL -->
+  <!-- 2D TOP-DOWN PHOTOGRAPHIC MAP IMAGE PREVIEW & PNG EXPORT MODAL -->
   <section id="map-export-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-lg flex items-center justify-center p-4 transition-opacity duration-300 opacity-0 pointer-events-none">
-    <div class="glass-panel w-full max-w-md rounded-3xl border border-sky-400/40 shadow-2xl p-4 space-y-3.5 max-h-[90vh] overflow-y-auto">
+    <div class="glass-panel w-full max-w-md rounded-3xl border border-sky-400/40 shadow-2xl p-4 space-y-3 max-h-[92vh] overflow-y-auto">
       <div class="flex items-center justify-between border-b border-white/10 pb-2.5">
         <div>
           <h2 class="text-sm font-bold text-white flex items-center gap-2">
-            <i class="fa-solid fa-map text-sky-400"></i> 2Dスキャンマップ画像出力
+            <i class="fa-solid fa-map text-sky-400"></i> 2D実写スキャンマップ出力
           </h2>
-          <span class="text-[10px] text-slate-400">自動縮尺フィット・軌跡＆周辺点群マップ (1200×1200px)</span>
+          <span class="text-[10px] text-slate-400 font-mono">ビルド: v2026.11.12-1744 | 1200×1200px PNG</span>
         </div>
         <button id="btn-close-map-modal" class="w-8 h-8 rounded-full glass-button flex items-center justify-center text-slate-300">
           <i class="fa-solid fa-xmark"></i>
@@ -222,15 +223,19 @@
         <canvas id="export-map-canvas" width="1200" height="1200" class="w-full h-full object-contain"></canvas>
       </div>
 
-      <!-- Display Options & Point Size -->
-      <div class="grid grid-cols-2 gap-2 text-xs">
-        <label class="glass-card p-2.5 rounded-2xl flex items-center justify-between cursor-pointer">
-          <span class="text-slate-200 font-medium">周囲点群を表示</span>
+      <!-- Layer Toggles: Camera Photo Map, RGB Point Cloud, Trajectory -->
+      <div class="grid grid-cols-3 gap-1.5 text-[11px]">
+        <label class="glass-card p-2 rounded-2xl flex items-center justify-between cursor-pointer">
+          <span class="text-slate-200 font-semibold">実写映像</span>
+          <input id="chk-export-photo" type="checkbox" checked class="w-4 h-4 accent-emerald-400 rounded">
+        </label>
+        <label class="glass-card p-2 rounded-2xl flex items-center justify-between cursor-pointer">
+          <span class="text-slate-200 font-semibold">3D点群</span>
           <input id="chk-export-points" type="checkbox" checked class="w-4 h-4 accent-sky-400 rounded">
         </label>
-        <label class="glass-card p-2.5 rounded-2xl flex items-center justify-between cursor-pointer">
-          <span class="text-slate-200 font-medium">移動軌跡を表示</span>
-          <input id="chk-export-traj" type="checkbox" checked class="w-4 h-4 accent-sky-400 rounded">
+        <label class="glass-card p-2 rounded-2xl flex items-center justify-between cursor-pointer">
+          <span class="text-slate-200 font-semibold">移動軌跡</span>
+          <input id="chk-export-traj" type="checkbox" checked class="w-4 h-4 accent-fuchsia-400 rounded">
         </label>
       </div>
 
@@ -253,9 +258,10 @@
   <script>
     /**
      * GPS-less Outdoor Visual SLAM Current Location Map App
-     * Version: v2026.11.12-1719
+     * Real-Time 2D Photographic Orthomosaic + 3D RGB Point Cloud
+     * Version: v2026.11.12-1744
      */
-    const APP_BUILD_VERSION = "v2026.11.12-1719";
+    const APP_BUILD_VERSION = "v2026.11.12-1744";
 
     // Pinhole Camera Intrinsics (iPhone Rear Wide ~68 deg horizontal FOV)
     const PROC_WIDTH = 240;
@@ -270,14 +276,30 @@
     const OUTDOOR_INITIAL_PRIOR = 4.5;  // Initial depth prior for outdoor scenes
     const MAX_MAP_POINTS = 8000;
 
+    // Persistent 2D Photographic Orthomosaic Ground Canvas (2048x2048 px -> covers 80m x 80m @ ~25.6 px/m)
+    const ORTHO_RES = 2048;
+    const ORTHO_WORLD_SPAN_M = 80.0;
+    const ORTHO_PX_PER_M = ORTHO_RES / ORTHO_WORLD_SPAN_M; // 25.6 px per meter
+    const orthoCanvas = document.createElement('canvas');
+    orthoCanvas.width = ORTHO_RES;
+    orthoCanvas.height = ORTHO_RES;
+    const orthoCtx = orthoCanvas.getContext('2d');
+
+    // Offscreen low-res camera patch canvas for fast ground texture projection
+    const patchCanvas = document.createElement('canvas');
+    patchCanvas.width = 160;
+    patchCanvas.height = 120;
+    const patchCtx = patchCanvas.getContext('2d');
+
     const state = {
       isCameraReady: false,
       isTracking: false,
-      viewMode: '3d', // Default to 3D Map for immediate location awareness ('3d' | 'camera')
+      viewMode: '3d', // '3d' | 'camera'
       hasSensorPermission: false,
       lastFrameTime: performance.now(),
+      lastOrthoStampTime: 0,
 
-      // Current Camera Pose in Right-Handed Y-up World (+X: East/Right, +Y: Altitude, -Z: Forward/North)
+      // Current Camera Pose in Right-Handed Y-up World (+X: Right, +Y: Up, -Z: Forward)
       pose: {
         x: 0, y: 0, z: 0,
         pitch: 0, yaw: 0, roll: 0
@@ -287,6 +309,7 @@
       yawCalibrationQuat: null,
 
       lastPose: { x: 0, y: 0, z: 0 },
+      lastOrthoPose: { x: 999, z: 999, yaw: 999 },
       totalDistance: 0,
       reprojectionRMSE: 0,
       keyframeCount: 0,
@@ -304,6 +327,13 @@
       // Triangulated Persistent 3D Point Cloud Landmarks
       triangulatedMapPoints: [],
       trajectory3D: [],
+
+      // Photo coverage bounds in world space (meters)
+      orthoBounds: {
+        hasData: false,
+        minX: 0, maxX: 0,
+        minZ: 0, maxZ: 0
+      },
 
       // Visualization Settings
       pointSize: 0.14
@@ -345,6 +375,7 @@
     const btnCloseMapModal = document.getElementById('btn-close-map-modal');
     const exportMapCanvas = document.getElementById('export-map-canvas');
     const exportMapCtx = exportMapCanvas.getContext('2d');
+    const chkExportPhoto = document.getElementById('chk-export-photo');
     const chkExportPoints = document.getElementById('chk-export-points');
     const chkExportTraj = document.getElementById('chk-export-traj');
     const sliderPointSize = document.getElementById('slider-point-size');
@@ -359,8 +390,9 @@
     let startMarkerMesh, currentMarkerMesh;
     let pointCloudParticles, pointCloudGeometry;
     let cameraAvatarGroup, levelHorizonRingMesh;
+    let orthoGroundMesh, orthoGroundTexture;
 
-    // 3D Orbit Camera Parameters (wider default overview for outdoor map)
+    // 3D Orbit Camera Parameters
     let is3DTouchDragging = false, previousTouchX = 0, previousTouchY = 0;
     let initialPinchDist = 0;
     let orbitAzimuth = 0.0, orbitElevation = 0.85, orbitDistance = 9.0;
@@ -373,6 +405,7 @@
       procCanvas.width = PROC_WIDTH;
       procCanvas.height = PROC_HEIGHT;
 
+      clearOrthoCanvas();
       initThreeJS();
       resizeCanvases();
       window.addEventListener('resize', resizeCanvases);
@@ -383,6 +416,13 @@
       await startCameraAndSensors();
       requestAnimationFrame(mainLoop);
     });
+
+    function clearOrthoCanvas() {
+      orthoCtx.clearRect(0, 0, ORTHO_RES, ORTHO_RES);
+      state.orthoBounds = { hasData: false, minX: 0, maxX: 0, minZ: 0, maxZ: 0 };
+      state.lastOrthoPose = { x: 999, z: 999, yaw: 999 };
+      if (orthoGroundTexture) orthoGroundTexture.needsUpdate = true;
+    }
 
     function resizeCanvases() {
       const width = window.innerWidth;
@@ -426,7 +466,7 @@
         state.isCameraReady = true;
         state.isTracking = true;
         labelCamBtn.textContent = "稼働中";
-        setStatus('マップ生成トラッキング中', 'bg-emerald-500');
+        setStatus('実写2Dマップ生成中', 'bg-emerald-500');
       } catch (err) {
         console.warn("Camera gesture required:", err);
         setStatus('「カメラ起動」をタップ', 'bg-amber-500');
@@ -465,6 +505,7 @@
       // 2D Map Image Export Modal
       btnOpenMapExport.addEventListener('click', openMapExportModal);
       btnCloseMapModal.addEventListener('click', closeMapExportModal);
+      chkExportPhoto.addEventListener('change', render2DExportMapImage);
       chkExportPoints.addEventListener('change', render2DExportMapImage);
       chkExportTraj.addEventListener('change', render2DExportMapImage);
       btnDownloadMapPng.addEventListener('click', download2DMapPNG);
@@ -572,7 +613,7 @@
       state.pose.pitch = e.beta - state.sensor.initBeta;
       state.pose.roll = -(e.gamma - state.sensor.initGamma);
 
-      // 2. Compute true 3D Quaternion for the 3D Map Device Avatar
+      // 2. Compute true 3D Quaternion for the 3D Map Device Avatar & Ground Projection
       const rawQuat = computeDeviceQuaternion(e.alpha, e.beta, e.gamma);
       if (state.yawCalibrationQuat === null) {
         const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(rawQuat);
@@ -631,7 +672,104 @@
     }
 
     // ==========================================
-    // 3. OUTDOOR MAP-TO-FRAME PNP SLAM ALGORITHM
+    // 3. REAL-TIME CAMERA-TO-2D ORTHOMOSAIC GROUND PROJECTION
+    // ==========================================
+    /**
+     * Projects the current live camera image onto the persistent 2048x2048 world XZ ground canvas
+     * using inverse camera-to-ground ray intersection (homography approximation) so real textures
+     * (pavement, tiles, floor lines, terrain) accumulate into a continuous 2D photographic map.
+     */
+    function projectCameraFrameToOrthoMap(now) {
+      if (!videoElem || videoElem.readyState < 2) return;
+
+      // Throttle stamping to ~8 Hz or when moved/rotated significantly
+      const tiltEuler = new THREE.Euler().setFromQuaternion(state.avatarQuaternion, 'YXZ');
+      const heading = tiltEuler.y;
+      const pitch = tiltEuler.x;
+
+      const movedDist = Math.hypot(state.pose.x - state.lastOrthoPose.x, state.pose.z - state.lastOrthoPose.z);
+      const turnedDeg = Math.abs(THREE.MathUtils.radToDeg(heading - state.lastOrthoPose.yaw));
+
+      if (now - state.lastOrthoStampTime < 140 && movedDist < 0.12 && turnedDeg < 5.0) {
+        return;
+      }
+
+      state.lastOrthoStampTime = now;
+      state.lastOrthoPose = { x: state.pose.x, z: state.pose.z, yaw: heading };
+
+      // Draw camera frame into patchCanvas with soft radial vignette mask so seams blend smoothly
+      patchCtx.clearRect(0, 0, patchCanvas.width, patchCanvas.height);
+      patchCtx.save();
+      patchCtx.drawImage(videoElem, 0, 0, patchCanvas.width, patchCanvas.height);
+
+      // Apply destination-in radial alpha mask to feather edges of each projected frame
+      patchCtx.globalCompositeOperation = 'destination-in';
+      const grad = patchCtx.createRadialGradient(
+        patchCanvas.width * 0.5, patchCanvas.height * 0.62, patchCanvas.width * 0.15,
+        patchCanvas.width * 0.5, patchCanvas.height * 0.55, patchCanvas.width * 0.52
+      );
+      grad.addColorStop(0, 'rgba(0, 0, 0, 0.85)');
+      grad.addColorStop(0.7, 'rgba(0, 0, 0, 0.55)');
+      grad.addColorStop(1, 'rgba(0, 0, 0, 0.0)');
+      patchCtx.fillStyle = grad;
+      patchCtx.fillRect(0, 0, patchCanvas.width, patchCanvas.height);
+      patchCtx.restore();
+
+      // Compute ground-plane projection footprint in front of the camera
+      // Camera height above ground ~1.35m; adjust forward reach based on pitch
+      const camHeight = Math.max(0.8, 1.35 + state.pose.y);
+      const clampedPitch = Math.max(-1.2, Math.min(0.35, pitch));
+      // When looking slightly down (clampedPitch < 0), center of ground patch is closer; when level, projects 1.0m to 6.5m ahead
+      const forwardOffset = Math.max(1.2, Math.min(5.5, camHeight / Math.tan(Math.max(0.22, -clampedPitch + 0.35))));
+      const patchWidthM = forwardOffset * 1.35;
+      const patchDepthM = forwardOffset * 1.45;
+
+      // World center of projected ground footprint
+      const fwdX = -Math.sin(heading);
+      const fwdZ = -Math.cos(heading);
+      const footprintWorldX = state.pose.x + fwdX * forwardOffset;
+      const footprintWorldZ = state.pose.z + fwdZ * forwardOffset;
+
+      // Convert world coordinates (meters) to orthoCanvas pixel coordinates
+      const halfOrtho = ORTHO_RES * 0.5;
+      const canvasX = halfOrtho + footprintWorldX * ORTHO_PX_PER_M;
+      const canvasY = halfOrtho + footprintWorldZ * ORTHO_PX_PER_M;
+      const drawW = patchWidthM * ORTHO_PX_PER_M;
+      const drawH = patchDepthM * ORTHO_PX_PER_M;
+
+      // Guard within canvas bounds
+      if (canvasX < 0 || canvasX > ORTHO_RES || canvasY < 0 || canvasY > ORTHO_RES) return;
+
+      orthoCtx.save();
+      orthoCtx.translate(canvasX, canvasY);
+      orthoCtx.rotate(-heading); // Align top of camera image with camera forward direction (-Z)
+      orthoCtx.drawImage(patchCanvas, -drawW * 0.5, -drawH * 0.5, drawW, drawH);
+      orthoCtx.restore();
+
+      // Expand photo coverage bounding box for 2D map auto-fit
+      const radiusM = Math.max(patchWidthM, patchDepthM) * 0.6;
+      if (!state.orthoBounds.hasData) {
+        state.orthoBounds = {
+          hasData: true,
+          minX: footprintWorldX - radiusM,
+          maxX: footprintWorldX + radiusM,
+          minZ: footprintWorldZ - radiusM,
+          maxZ: footprintWorldZ + radiusM
+        };
+      } else {
+        state.orthoBounds.minX = Math.min(state.orthoBounds.minX, footprintWorldX - radiusM);
+        state.orthoBounds.maxX = Math.max(state.orthoBounds.maxX, footprintWorldX + radiusM);
+        state.orthoBounds.minZ = Math.min(state.orthoBounds.minZ, footprintWorldZ - radiusM);
+        state.orthoBounds.maxZ = Math.max(state.orthoBounds.maxZ, footprintWorldZ + radiusM);
+      }
+
+      if (orthoGroundTexture) {
+        orthoGroundTexture.needsUpdate = true;
+      }
+    }
+
+    // ==========================================
+    // 4. OUTDOOR MAP-TO-FRAME PNP SLAM ALGORITHM
     // ==========================================
     function mainLoop() {
       const now = performance.now();
@@ -642,6 +780,7 @@
         procCtx.drawImage(videoElem, 0, 0, PROC_WIDTH, PROC_HEIGHT);
         const frameData = procCtx.getImageData(0, 0, PROC_WIDTH, PROC_HEIGHT);
         runPnPVisualSLAM(frameData, dt);
+        projectCameraFrameToOrthoMap(now);
       }
 
       update3DScene();
@@ -736,9 +875,6 @@
       return rayCam.applyMatrix4(rotMat).normalize();
     }
 
-    /**
-     * Outdoor Multi-View Stereo Ray-Ray Triangulation (up to 35m depth)
-     */
     function triangulateStereoRays(orig0, ray0, orig1, ray1) {
       const w0 = new THREE.Vector3().subVectors(orig0, orig1);
       const b = ray0.dot(ray1);
@@ -746,19 +882,16 @@
       const e = ray1.dot(w0);
 
       const denom = 1.0 - b * b;
-      // Enforce >= 2.5 degrees parallax angle for outdoor distant objects
       if (denom < 0.0019) return null;
 
       const s = (b * e - d) / denom;
       const t = (e - b * d) / denom;
 
-      // Outdoor depth bounds [0.4m, 35.0m]
       if (s < 0.4 || s > OUTDOOR_MAX_DEPTH || t < 0.4 || t > OUTDOOR_MAX_DEPTH) return null;
 
       const p0 = new THREE.Vector3().copy(orig0).addScaledVector(ray0, s);
       const p1 = new THREE.Vector3().copy(orig1).addScaledVector(ray1, t);
 
-      // Proportional closest-approach residual tolerance (< 3% of depth or 0.15m)
       const maxErr = Math.max(0.08, s * 0.025);
       if (p0.distanceTo(p1) > maxErr) return null;
 
@@ -1094,7 +1227,7 @@
     }
 
     // ==========================================
-    // 4. THREE.JS 3D SPATIAL RENDERER & QUATERNION DEVICE TILT
+    // 5. THREE.JS 3D SPATIAL RENDERER & ORTHOMOSAIC GROUND
     // ==========================================
     function initThreeJS() {
       const width = window.innerWidth;
@@ -1116,9 +1249,26 @@
       dirLight.position.set(10, 25, 15);
       scene.add(dirLight);
 
-      // 100m x 100m Outdoor Grid (20 divisions -> 1 cell = 5.0m)
+      // 1. Live Photographic Orthomosaic Ground Plane (80m x 80m)
+      orthoGroundTexture = new THREE.CanvasTexture(orthoCanvas);
+      orthoGroundTexture.minFilter = THREE.LinearFilter;
+      orthoGroundTexture.magFilter = THREE.LinearFilter;
+
+      const orthoPlaneGeo = new THREE.PlaneGeometry(ORTHO_WORLD_SPAN_M, ORTHO_WORLD_SPAN_M);
+      orthoPlaneGeo.rotateX(-Math.PI / 2);
+      const orthoPlaneMat = new THREE.MeshBasicMaterial({
+        map: orthoGroundTexture,
+        transparent: true,
+        opacity: 0.92,
+        depthWrite: false
+      });
+      orthoGroundMesh = new THREE.Mesh(orthoPlaneGeo, orthoPlaneMat);
+      orthoGroundMesh.position.y = -1.21;
+      scene.add(orthoGroundMesh);
+
+      // 2. 100m x 100m Outdoor Metric Grid (1 cell = 5.0m)
       const grid = new THREE.GridHelper(100, 20, 0x38bdf8, 0x1e293b);
-      grid.position.y = -1.2;
+      grid.position.y = -1.20;
       scene.add(grid);
 
       trajectoryMeshGroup = new THREE.Group();
@@ -1239,7 +1389,7 @@
 
         for (let i = 0; i < vCount; i++) {
           const ratio = i / vCount;
-          const hue = 0.55 - ratio * 0.45; // Cyan (Start) -> Emerald -> Rose (Current)
+          const hue = 0.55 - ratio * 0.45;
           cObj.setHSL(Math.max(0.0, hue), 0.9, 0.55);
           tubeColors[i * 3] = cObj.r;
           tubeColors[i * 3 + 1] = cObj.g;
@@ -1253,7 +1403,6 @@
         );
         trajectoryMeshGroup.add(tubeMesh);
 
-        // Drop lines to ground plane (Y = -1.2)
         const step = Math.max(1, Math.floor(pts.length / 30));
         for (let i = 0; i < pts.length; i += step) {
           const p = pts[i];
@@ -1318,7 +1467,7 @@
     }
 
     // ==========================================
-    // 5. HIGH-RES 2D TOP-DOWN MAP PNG GENERATOR
+    // 6. HIGH-RES 2D PHOTOGRAPHIC MAP PNG GENERATOR
     // ==========================================
     function openMapExportModal() {
       mapExportModal.classList.remove('opacity-0', 'pointer-events-none');
@@ -1334,15 +1483,22 @@
       const H = exportMapCanvas.height;  // 1200
       const ctx = exportMapCtx;
 
-      // 1. Dark Map Paper Background
+      // 1. Dark Map Paper Base
       ctx.fillStyle = '#070d19';
       ctx.fillRect(0, 0, W, H);
 
-      // 2. Compute Bounding Box of all scanned points & trajectory (X, Z)
+      // 2. Compute Bounding Box of photo map, scanned points & trajectory (X, Z)
       let minX = Math.min(0, state.pose.x);
       let maxX = Math.max(0, state.pose.x);
       let minZ = Math.min(0, state.pose.z);
       let maxZ = Math.max(0, state.pose.z);
+
+      if (chkExportPhoto.checked && state.orthoBounds.hasData) {
+        minX = Math.min(minX, state.orthoBounds.minX);
+        maxX = Math.max(maxX, state.orthoBounds.maxX);
+        minZ = Math.min(minZ, state.orthoBounds.minZ);
+        maxZ = Math.max(maxZ, state.orthoBounds.maxZ);
+      }
 
       state.trajectory3D.forEach(p => {
         if (p.x < minX) minX = p.x;
@@ -1362,17 +1518,48 @@
 
       const spanX = Math.max(4.0, maxX - minX);
       const spanZ = Math.max(4.0, maxZ - minZ);
-      const maxSpan = Math.max(spanX, spanZ) * 1.25; // 25% margin around scanned region
+      const maxSpan = Math.max(spanX, spanZ) * 1.2;
       const centerX = (minX + maxX) * 0.5;
       const centerZ = (minZ + maxZ) * 0.5;
 
-      const usablePixels = W - 200; // Leave margins for header/footer HUD
+      const usablePixels = W - 200;
       const pxPerMeter = usablePixels / maxSpan;
 
       const worldToMapX = (wx) => (W * 0.5) + (wx - centerX) * pxPerMeter;
       const worldToMapY = (wz) => (H * 0.5) + (wz - centerZ) * pxPerMeter;
 
-      // 3. Choose Nice Metric Grid Step (1m, 2m, 5m, 10m, 20m)
+      // 3. Composite Camera Photographic Orthomosaic Layer
+      if (chkExportPhoto.checked && state.orthoBounds.hasData) {
+        const halfOrtho = ORTHO_RES * 0.5;
+        const srcMinX = Math.max(0, halfOrtho + (centerX - maxSpan * 0.6) * ORTHO_PX_PER_M);
+        const srcMinY = Math.max(0, halfOrtho + (centerZ - maxSpan * 0.6) * ORTHO_PX_PER_M);
+        const srcMaxX = Math.min(ORTHO_RES, halfOrtho + (centerX + maxSpan * 0.6) * ORTHO_PX_PER_M);
+        const srcMaxY = Math.min(ORTHO_RES, halfOrtho + (centerZ + maxSpan * 0.6) * ORTHO_PX_PER_M);
+
+        const srcW = srcMaxX - srcMinX;
+        const srcH = srcMaxY - srcMinY;
+
+        if (srcW > 4 && srcH > 4) {
+          const worldLeft = (srcMinX - halfOrtho) / ORTHO_PX_PER_M;
+          const worldTop = (srcMinY - halfOrtho) / ORTHO_PX_PER_M;
+          const worldRight = (srcMaxX - halfOrtho) / ORTHO_PX_PER_M;
+          const worldBottom = (srcMaxY - halfOrtho) / ORTHO_PX_PER_M;
+
+          const dstX = worldToMapX(worldLeft);
+          const dstY = worldToMapY(worldTop);
+          const dstW = worldToMapX(worldRight) - dstX;
+          const dstH = worldToMapY(worldBottom) - dstY;
+
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(50, 105, W - 100, H - 210);
+          ctx.clip();
+          ctx.drawImage(orthoCanvas, srcMinX, srcMinY, srcW, srcH, dstX, dstY, dstW, dstH);
+          ctx.restore();
+        }
+      }
+
+      // 4. Metric Coordinate Grid Overlay
       const niceSteps = [1, 2, 5, 10, 20, 50];
       let gridStepMeters = niceSteps[0];
       for (let s of niceSteps) {
@@ -1382,13 +1569,12 @@
         }
       }
 
-      // Draw Metric Coordinate Grid
       const gridStepPx = gridStepMeters * pxPerMeter;
       const originMapX = worldToMapX(0);
       const originMapY = worldToMapY(0);
 
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.14)';
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.22)';
+      ctx.lineWidth = 1.5;
 
       for (let gx = originMapX % gridStepPx; gx < W; gx += gridStepPx) {
         ctx.beginPath(); ctx.moveTo(gx, 110); ctx.lineTo(gx, H - 110); ctx.stroke();
@@ -1397,9 +1583,9 @@
         ctx.beginPath(); ctx.moveTo(60, gy); ctx.lineTo(W - 60, gy); ctx.stroke();
       }
 
-      // Highlight Origin Axes (X=0, Z=0)
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
-      ctx.lineWidth = 3;
+      // Origin Axes
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.45)';
+      ctx.lineWidth = 2.5;
       if (originMapX >= 60 && originMapX <= W - 60) {
         ctx.beginPath(); ctx.moveTo(originMapX, 110); ctx.lineTo(originMapX, H - 110); ctx.stroke();
       }
@@ -1407,9 +1593,9 @@
         ctx.beginPath(); ctx.moveTo(60, originMapY); ctx.lineTo(W - 60, originMapY); ctx.stroke();
       }
 
-      // 4. Plot Scanned RGB Point Cloud Landmarks
+      // 5. Plot Scanned 3D RGB Structural Point Cloud Landmarks
       if (chkExportPoints.checked && state.triangulatedMapPoints.length > 0) {
-        const ptRadius = Math.max(3, Math.min(8, pxPerMeter * 0.08));
+        const ptRadius = Math.max(3, Math.min(7.5, pxPerMeter * 0.07));
         for (let mp of state.triangulatedMapPoints) {
           const mx = worldToMapX(mp.position.x);
           const my = worldToMapY(mp.position.z);
@@ -1418,22 +1604,22 @@
           const r = Math.round(mp.color.r * 255);
           const g = Math.round(mp.color.g * 255);
           const b = Math.round(mp.color.b * 255);
-          ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.88)`;
+          ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.92)`;
           ctx.beginPath();
           ctx.arc(mx, my, ptRadius, 0, Math.PI * 2);
           ctx.fill();
         }
       }
 
-      // 5. Draw Trajectory Route Path
+      // 6. Draw Trajectory Route Path
       if (chkExportTraj.checked && state.trajectory3D.length > 1) {
         ctx.save();
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         ctx.lineWidth = 8;
         ctx.strokeStyle = '#38bdf8';
-        ctx.shadowColor = 'rgba(56, 189, 248, 0.5)';
-        ctx.shadowBlur = 12;
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
+        ctx.shadowBlur = 8;
 
         ctx.beginPath();
         state.trajectory3D.forEach((p, idx) => {
@@ -1446,7 +1632,7 @@
         ctx.restore();
       }
 
-      // 6. Start Pin (0, 0)
+      // 7. Start Pin (0, 0)
       ctx.fillStyle = '#0284c7';
       ctx.beginPath();
       ctx.arc(originMapX, originMapY, 16, 0, Math.PI * 2);
@@ -1455,15 +1641,14 @@
       ctx.strokeStyle = '#ffffff';
       ctx.stroke();
 
-      ctx.fillStyle = '#e0f2fe';
+      ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 24px sans-serif';
       ctx.fillText('START', originMapX + 22, originMapY + 8);
 
-      // 7. Current Location Pin & Heading Arrow
+      // 8. Current Location Pin & Heading Cone
       const curMapX = worldToMapX(state.pose.x);
       const curMapY = worldToMapY(state.pose.z);
 
-      // Heading Cone
       const tiltEuler = new THREE.Euler().setFromQuaternion(state.avatarQuaternion, 'YXZ');
       const headingRad = tiltEuler.y;
 
@@ -1471,7 +1656,7 @@
       ctx.translate(curMapX, curMapY);
       ctx.rotate(-headingRad);
 
-      ctx.fillStyle = 'rgba(244, 63, 94, 0.28)';
+      ctx.fillStyle = 'rgba(244, 63, 94, 0.35)';
       ctx.beginPath();
       ctx.moveTo(0, 0);
       ctx.lineTo(-34, -75);
@@ -1479,7 +1664,6 @@
       ctx.closePath();
       ctx.fill();
 
-      // Current Position Circle
       ctx.fillStyle = '#f43f5e';
       ctx.beginPath();
       ctx.arc(0, 0, 18, 0, Math.PI * 2);
@@ -1493,8 +1677,8 @@
       ctx.font = 'bold 24px sans-serif';
       ctx.fillText('NOW', curMapX + 24, curMapY + 8);
 
-      // 8. Top Banner Header & Compass Rose
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.94)';
+      // 9. Top Banner Header & Compass Rose
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
       ctx.fillRect(0, 0, W, 98);
       ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
       ctx.lineWidth = 2;
@@ -1502,14 +1686,14 @@
 
       ctx.fillStyle = '#38bdf8';
       ctx.font = 'bold 34px sans-serif';
-      ctx.fillText('GPS-LESS VISUAL SLAM 2D MAP', 44, 52);
+      ctx.fillText('VISUAL SLAM 2D PHOTO MAP', 44, 52);
 
       const dateStr = new Date().toLocaleString('ja-JP');
       ctx.fillStyle = '#94a3b8';
       ctx.font = '22px monospace';
       ctx.fillText(`${dateStr}  |  ${APP_BUILD_VERSION}`, 44, 82);
 
-      // Compass Badge (Top Right)
+      // Compass Badge
       ctx.save();
       ctx.translate(W - 68, 49);
       ctx.strokeStyle = '#38bdf8';
@@ -1523,8 +1707,8 @@
       ctx.fillText('FWD', 0, 20);
       ctx.restore();
 
-      // 9. Bottom Footer Metadata & Dynamic Metric Scale Bar
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.94)';
+      // 10. Bottom Footer Metadata & Dynamic Metric Scale Bar
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
       ctx.fillRect(0, H - 98, W, 98);
       ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
       ctx.beginPath(); ctx.moveTo(0, H - 98); ctx.lineTo(W, H - 98); ctx.stroke();
@@ -1533,19 +1717,19 @@
       ctx.fillStyle = '#f8fafc';
       ctx.font = 'bold 26px monospace';
       ctx.fillText(
-        `現在地: X=${state.pose.x.toFixed(2)}m  Z=${state.pose.z.toFixed(2)}m  高低差=${state.pose.y.toFixed(2)}m`,
+        `現在地: X=${state.pose.x.toFixed(2)}m  Z=${state.pose.z.toFixed(2)}m  Y=${state.pose.y.toFixed(2)}m`,
         44,
         H - 54
       );
       ctx.fillStyle = '#34d399';
       ctx.font = '22px monospace';
       ctx.fillText(
-        `総移動距離: ${state.totalDistance.toFixed(2)}m  |  スキャン点群: ${state.triangulatedMapPoints.length}点`,
+        `総移動距離: ${state.totalDistance.toFixed(2)}m  |  点群: ${state.triangulatedMapPoints.length}点`,
         44,
         H - 22
       );
 
-      // Scale Bar (Bottom Right)
+      // Scale Bar
       const barRight = W - 48;
       const barLeft = barRight - gridStepPx;
       const barY = H - 36;
@@ -1571,14 +1755,14 @@
       const link = document.createElement('a');
       link.href = dataURL;
       const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      link.download = `slam_2d_map_${stamp}.png`;
+      link.download = `slam_photo_map_${stamp}.png`;
       document.body.appendChild(link);
       link.click();
       link.remove();
     }
 
     // ==========================================
-    // 6. ORIGIN RESET
+    // 7. ORIGIN RESET
     // ==========================================
     function resetOriginPosition() {
       state.pose = { x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 0 };
@@ -1594,6 +1778,8 @@
       state.triangulatedMapPoints = [];
       state.trajectory3D = [];
       prevGrayFrame = null;
+
+      clearOrthoCanvas();
 
       while (trajectoryMeshGroup.children.length > 0) {
         const obj = trajectoryMeshGroup.children.pop();

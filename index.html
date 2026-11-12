@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>iPhone Visual SLAM - 3D Tilt & Spatial Measurement (v2026.11.12-1531)</title>
+  <title>iPhone Visual SLAM - PnP 3D Measurement (v2026.11.12-1537)</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Three.js for 3D Spatial Rendering & Raycasting -->
@@ -78,10 +78,10 @@
       <div id="status-indicator" class="w-3 h-3 rounded-full bg-amber-500 status-pulse shrink-0"></div>
       <div>
         <div class="flex items-center gap-1.5 flex-wrap">
-          <h1 class="text-[10px] font-bold tracking-wider uppercase text-sky-400">6DoF Visual SLAM</h1>
+          <h1 class="text-[10px] font-bold tracking-wider uppercase text-sky-400">PnP Visual SLAM</h1>
           <!-- Permanent Build Version Badge -->
           <span id="app-build-ver" class="px-1.5 py-0.5 rounded text-[8px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-400/50 shadow-sm">
-            v2026.11.12-1531
+            v2026.11.12-1537
           </span>
         </div>
         <div id="status-text" class="text-[11px] font-bold text-slate-100 mt-0.5 truncate max-w-[165px]">
@@ -400,9 +400,9 @@
       <div class="flex justify-between items-center pb-2 border-b border-white/10">
         <div>
           <h2 class="text-base font-bold text-white flex items-center gap-2">
-            <i class="fa-solid fa-compass text-fuchsia-400"></i> 6DoF Spatial Visual SLAM
+            <i class="fa-solid fa-anchor text-fuchsia-400"></i> Map-to-Frame PnP SLAM
           </h2>
-          <span class="text-[10px] font-mono text-cyan-300 font-bold">ビルドバージョン: v2026.11.12-1531</span>
+          <span class="text-[10px] font-mono text-cyan-300 font-bold">ビルドバージョン: v2026.11.12-1537</span>
         </div>
         <button id="btn-close-modal" class="p-2 text-slate-400 hover:text-white">
           <i class="fa-solid fa-xmark text-xl"></i>
@@ -437,12 +437,12 @@
 
   <script>
     /**
-     * iPhone Visual SLAM with True 3D Quaternion Device Tilt & 3D Spatial Measurement
-     * Version: v2026.11.12-1531
+     * iPhone Visual SLAM with Map-to-Frame PnP Gauss-Newton Solver
+     * Version: v2026.11.12-1537
      */
-    const APP_BUILD_VERSION = "v2026.11.12-1531";
+    const APP_BUILD_VERSION = "v2026.11.12-1537";
 
-    // Calibrated Pinhole Intrinsics (iPhone Rear Wide ~68 deg horizontal FOV)
+    // Pinhole Camera Intrinsics (iPhone Rear Wide ~68 deg horizontal FOV)
     const PROC_WIDTH = 240;
     const PROC_HEIGHT = 180;
     const H_FOV_DEG = 68.0;
@@ -475,13 +475,13 @@
       prevFrameQuaternion: null,
 
       // Optical-flow fallback orientation angles (when gyroscope is unavailable/denied)
-      opticalFallback: {
-        yaw: 0,
-        pitch: 0,
-        roll: 0
+      // Current Camera Pose in Right-Handed Y-up World (+X: Right, +Y: Up, -Z: Forward)
+      pose: {
+        x: 0, y: 0, z: 0,
+        pitch: 0, yaw: 0, roll: 0
       },
-      visualRotOffset: { pitch: 0, yaw: 0, roll: 0 },
-
+      // Exact 3D World Quaternion for the 3D smartphone avatar (gimbal-lock free)
+      deviceWorldQuaternion: new THREE.Quaternion(),
       lastPose: { x: 0, y: 0, z: 0 },
       totalDistance: 0,
       reprojectionRMSE: 0,
@@ -492,11 +492,11 @@
       // Gyroscope Sensor State (Exact 3D Quaternion Calibration)
       sensor: {
         isActive: false,
-        lastEventTime: 0,
-        zeroYawQuatInv: null, // Inverse Yaw rotation around World +Y to align initial forward to -Z
-        rawAlpha: 0,
-        rawBeta: 90,
-        rawGamma: 0
+      // Gyroscope Orientation Tracking
+      sensor: {
+        initAlpha: null, initBeta: null, initGamma: null,
+        zeroYawQuatInv: null,
+        rawAlpha: 0, rawBeta: 0, rawGamma: 0
       },
 
       // Active 2D-3D Tracked Features & Persistent World Anchors
@@ -610,9 +610,9 @@
     let trajectoryMeshGroup, pillarsGroup, measurementGroup, snapCursorMesh;
     let startMarkerMesh, currentMarkerMesh;
     let pointCloudParticles, pointCloudGeometry;
-    let cameraAvatarGroup, worldLevelRingMesh, floorCompassGroup, sightlineLaserMesh, verticalTetherLine;
+    let cameraAvatarGroup, worldLevelRingMesh;
 
-    // 3D Orbit Camera Parameters (Default slightly behind and above device to inspect tilt clearly)
+    // 3D Orbit Camera Parameters
     let is3DTouchDragging = false, previousTouchX = 0, previousTouchY = 0;
     let initialPinchDist = 0;
     let orbitAzimuth = 0.42, orbitElevation = 0.45, orbitDistance = 2.4;
@@ -970,88 +970,51 @@
     function handleOrientation(e) {
       if (e.alpha === null && e.beta === null && e.gamma === null) return;
 
-      state.sensor.isActive = true;
-      state.sensor.lastEventTime = performance.now();
-      state.sensor.rawAlpha = e.alpha || 0;
-      state.sensor.rawBeta = e.beta || 90;
-      state.sensor.rawGamma = e.gamma || 0;
+      // Preserve legacy Euler tracking state for untouched PnP solver & telemetry
+      if (state.sensor.initAlpha === null) {
+        state.sensor.initAlpha = e.alpha;
+        state.sensor.initBeta = e.beta;
+        state.sensor.initGamma = e.gamma;
+      }
 
-      const screenOrient = (window.screen && window.screen.orientation && window.screen.orientation.angle)
+      // Compute accurate gimbal-lock-free 3D Quaternion from DeviceOrientation (alpha, beta, gamma)
+      const alphaRad = THREE.MathUtils.degToRad(e.alpha || 0);
+      const betaRad = THREE.MathUtils.degToRad(e.beta || 0);
+      const gammaRad = THREE.MathUtils.degToRad(e.gamma || 0);
+      const screenOrientDeg = (window.screen && window.screen.orientation && window.screen.orientation.angle)
         || window.orientation || 0;
+      const orientRad = THREE.MathUtils.degToRad(screenOrientDeg);
 
-      const rawWorldQuat = computeWorldQuaternionFromDeviceOrientation(
-        state.sensor.rawAlpha,
-        state.sensor.rawBeta,
-        state.sensor.rawGamma,
-        screenOrient
-      );
+      // Intrinsic Z-X'-Y'' order per W3C DeviceOrientation spec, rotated -PI/2 around X so rear camera looks along -Z
+      const eulerDevice = new THREE.Euler(betaRad, alphaRad, -gammaRad, 'YXZ');
+      const rawWorldQuat = new THREE.Quaternion().setFromEuler(eulerDevice);
+      const qCamAlign = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
+      const qScreen = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -orientRad);
+      rawWorldQuat.multiply(qCamAlign).multiply(qScreen);
 
-      // Calibrate initial horizontal heading (Yaw around World +Y) to 0° (-Z forward)
-      // while preserving true gravity-aligned Pitch & Roll!
+      // Initial horizontal yaw zero-calibration around World +Y while preserving gravity-aligned Pitch & Roll
       if (state.sensor.zeroYawQuatInv === null) {
         const forwardVec = new THREE.Vector3(0, 0, -1).applyQuaternion(rawWorldQuat);
         const initialYawRad = Math.atan2(-forwardVec.x, -forwardVec.z);
-        state.sensor.zeroYawQuatInv = new THREE.Quaternion().setFromAxisAngle(_worldUp, -initialYawRad);
+        state.sensor.zeroYawQuatInv = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -initialYawRad);
       }
 
-      // Combine horizontal heading zero calibration + subtle visual PnP drift correction
-      const calibratedQuat = state.sensor.zeroYawQuatInv.clone().multiply(rawWorldQuat);
-      const visualDeltaEuler = new THREE.Euler(
-        THREE.MathUtils.degToRad(state.visualRotOffset.pitch),
-        THREE.MathUtils.degToRad(state.visualRotOffset.yaw),
-        THREE.MathUtils.degToRad(state.visualRotOffset.roll),
-        'YXZ'
-      );
-      const visualDeltaQuat = new THREE.Quaternion().setFromEuler(visualDeltaEuler);
-      calibratedQuat.premultiply(visualDeltaQuat).normalize();
-
+      const calibratedQuat = state.sensor.zeroYawQuatInv.clone().multiply(rawWorldQuat).normalize();
       state.deviceWorldQuaternion.copy(calibratedQuat);
-      if (!state.prevFrameQuaternion) {
-        state.prevFrameQuaternion = calibratedQuat.clone();
-      }
-      syncEulerReadoutFromQuaternion(calibratedQuat);
-      statGyroModeElem.textContent = "IMU+PnP";
-    }
 
-    function syncEulerReadoutFromQuaternion(quat) {
-      const yxz = new THREE.Euler().setFromQuaternion(quat, 'YXZ');
-      let yawDeg = THREE.MathUtils.radToDeg(yxz.y);
-      let pitchDeg = THREE.MathUtils.radToDeg(yxz.x);
-      let rollDeg = THREE.MathUtils.radToDeg(yxz.z);
+      // Extract clean YXZ Euler angles from calibrated 3D quaternion for PnP & telemetry readout
+      const yxz = new THREE.Euler().setFromQuaternion(calibratedQuat, 'YXZ');
+      let yaw = THREE.MathUtils.radToDeg(yxz.y);
+      if (yaw > 180) yaw -= 360;
+      if (yaw < -180) yaw += 360;
 
-      if (yawDeg > 180) yawDeg -= 360;
-      if (yawDeg < -180) yawDeg += 360;
+      state.pose.yaw = yaw;
+      state.pose.pitch = THREE.MathUtils.radToDeg(yxz.x);
+      state.pose.roll = THREE.MathUtils.radToDeg(yxz.z);
 
-      state.pose.yaw = yawDeg;
-      state.pose.pitch = pitchDeg;
-      state.pose.roll = rollDeg;
-
-      yawElem.textContent = `${yawDeg >= 0 ? '+' : ''}${yawDeg.toFixed(1)}°`;
-      pitchElem.textContent = `${pitchDeg >= 0 ? '+' : ''}${pitchDeg.toFixed(1)}°`;
-      rollElem.textContent = `${rollDeg >= 0 ? '+' : ''}${rollDeg.toFixed(1)}°`;
-
-      statHeadingDirElem.textContent = getSpatialDirectionLabel(yawDeg, pitchDeg, rollDeg);
-    }
-
-    function getSpatialDirectionLabel(yaw, pitch, roll) {
-      let dir = "基準正面";
-      const absY = Math.abs(yaw);
-      if (absY <= 22.5) dir = "基準正面";
-      else if (yaw > 22.5 && yaw <= 67.5) dir = "左斜め前";
-      else if (yaw > 67.5 && yaw <= 112.5) dir = "左側面";
-      else if (yaw > 112.5 && yaw <= 157.5) dir = "左斜め後";
-      else if (absY > 157.5) dir = "真後ろ";
-      else if (yaw < -22.5 && yaw >= -67.5) dir = "右斜め前";
-      else if (yaw < -67.5 && yaw >= -112.5) dir = "右側面";
-      else if (yaw < -112.5 && yaw >= -157.5) dir = "右斜め後";
-
-      const tilts = [];
-      if (pitch > 15) tilts.push(`上${Math.round(pitch)}°`);
-      else if (pitch < -15) tilts.push(`下${Math.round(Math.abs(pitch))}°`);
-
-      if (Math.abs(roll) > 12) tilts.push(`傾${Math.round(roll)}°`);
-
-      return tilts.length > 0 ? `${dir} (${tilts.join('/')})` : `${dir} (${Math.round(yaw)}°)`;
+      yawElem.textContent = `${state.pose.yaw.toFixed(1)}°`;
+      pitchElem.textContent = `${state.pose.pitch.toFixed(1)}°`;
+      rollElem.textContent = `${state.pose.roll.toFixed(1)}°`;
     }
 
     function cycleViewMode() {
@@ -2431,31 +2394,31 @@
         new THREE.MeshBasicMaterial({ color: 0xf43f5e, side: THREE.DoubleSide, transparent: true, opacity: 0.8 })
       );
       floorCompassGroup.add(ringMesh);
+      // Forward Heading Arrow (-Z)
+      const arrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 0, 0), 0.58, 0x10b981, 0.14, 0.09);
+      cameraAvatarGroup.add(arrow);
 
-      const floorArrowShape = new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(0, 0.01, -0.60),
-        new THREE.Vector3(0.15, 0.01, -0.24),
-        new THREE.Vector3(0, 0.01, -0.32),
-        new THREE.Vector3(-0.15, 0.01, -0.24),
-        new THREE.Vector3(0, 0.01, -0.60)
-      ]);
-      const floorArrowLine = new THREE.Line(
-        floorArrowShape,
-        new THREE.LineBasicMaterial({ color: 0xf43f5e, linewidth: 3 })
+      // Gold Device-Tilting Attitude Ring (rotates directly with the iPhone's pitch & roll)
+      const deviceAttitudeRingGeo = new THREE.RingGeometry(0.28, 0.305, 48);
+      deviceAttitudeRingGeo.rotateX(-Math.PI / 2);
+      const deviceAttitudeRing = new THREE.Mesh(
+        deviceAttitudeRingGeo,
+        new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide, transparent: true, opacity: 0.9 })
       );
-      floorCompassGroup.add(floorArrowLine);
-      scene.add(floorCompassGroup);
+      cameraAvatarGroup.add(deviceAttitudeRing);
 
-      // Vertical Drop Line connecting device to its floor compass projection
-      const tetherGeo = new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(0, 0, 0),
-        new THREE.Vector3(0, GROUND_Y, 0)
-      ]);
-      verticalTetherLine = new THREE.Line(
-        tetherGeo,
-        new THREE.LineBasicMaterial({ color: 0xf43f5e, transparent: true, opacity: 0.55 })
+      // Local RGB Axes
+      cameraAvatarGroup.add(new THREE.AxesHelper(0.32));
+      scene.add(cameraAvatarGroup);
+
+      // White Stationary Level Horizon Reference Ring around the 3D smartphone avatar
+      const worldLevelRingGeo = new THREE.RingGeometry(0.32, 0.335, 48);
+      worldLevelRingGeo.rotateX(-Math.PI / 2);
+      worldLevelRingMesh = new THREE.Mesh(
+        worldLevelRingGeo,
+        new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.45 })
       );
-      scene.add(verticalTetherLine);
+      scene.add(worldLevelRingMesh);
 
       // Real-Color RGB 3D Point Cloud
       pointCloudGeometry = new THREE.BufferGeometry();
@@ -2473,21 +2436,12 @@
     function update3DScene() {
       if (!scene || !renderer3D) return;
 
-      // Apply exact 3D World Position & Quaternion Tilt/Orientation to the 3D iPhone Avatar
       cameraAvatarGroup.position.set(state.pose.x, state.pose.y, state.pose.z);
       cameraAvatarGroup.quaternion.copy(state.deviceWorldQuaternion);
-
       currentMarkerMesh.position.set(state.pose.x, state.pose.y, state.pose.z);
-      worldLevelRingMesh.position.set(state.pose.x, state.pose.y, state.pose.z);
-
-      // Update Floor-Projected Heading Compass & Vertical Tether
-      floorCompassGroup.position.set(state.pose.x, GROUND_Y + 0.01, state.pose.z);
-      floorCompassGroup.rotation.y = THREE.MathUtils.degToRad(state.pose.yaw);
-
-      verticalTetherLine.geometry.setFromPoints([
-        new THREE.Vector3(state.pose.x, state.pose.y, state.pose.z),
-        new THREE.Vector3(state.pose.x, GROUND_Y + 0.01, state.pose.z)
-      ]);
+      if (worldLevelRingMesh) {
+        worldLevelRingMesh.position.set(state.pose.x, state.pose.y, state.pose.z);
+      }
 
       // Update Volumetric Ribbon Trajectory & Floor Drop-Lines
       if (state.trajectory3D.length > 1) {
@@ -2737,15 +2691,10 @@
 
     function resetOriginPosition() {
       state.pose = { x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 0 };
-      state.visualRotOffset = { pitch: 0, yaw: 0, roll: 0 };
-      state.opticalFallback = { yaw: 0, pitch: 0, roll: 0 };
       state.lastPose = { x: 0, y: 0, z: 0 };
-      // Re-calibrate horizontal Yaw to 0° on next orientation event while preserving gravity Pitch/Roll
+      state.sensor.initAlpha = null;
       state.sensor.zeroYawQuatInv = null;
-      state.prevFrameQuaternion = null;
-      if (!state.sensor.isActive) {
-        state.deviceWorldQuaternion.identity();
-      }
+      state.deviceWorldQuaternion.identity();
       state.totalDistance = 0;
       state.reprojectionRMSE = 0;
       state.lockedAnchorCount = 0;

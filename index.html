@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>iPhone Visual SLAM - PnP 3D Measurement (v2026.11.12-1537)</title>
+  <title>iPhone Visual SLAM - PnP 3D Measurement (v2026.11.12-1422)</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Three.js for 3D Spatial Rendering & Raycasting -->
@@ -30,7 +30,7 @@
     }
 
     .glass-card {
-      background: rgba(30, 41, 59, 0.78);
+      background: rgba(30, 41, 59, 0.75);
       backdrop-filter: blur(14px);
       -webkit-backdrop-filter: blur(14px);
       border: 1px solid rgba(255, 255, 255, 0.08);
@@ -50,7 +50,7 @@
 
     .pip-container {
       width: 116px;
-      height: 158px;
+      height: 160px;
       border-radius: 18px;
       overflow: hidden;
       box-shadow: 0 12px 35px rgba(0, 0, 0, 0.85), 0 0 0 2px rgba(56, 189, 248, 0.75);
@@ -81,7 +81,7 @@
           <h1 class="text-[10px] font-bold tracking-wider uppercase text-sky-400">PnP Visual SLAM</h1>
           <!-- Permanent Build Version Badge -->
           <span id="app-build-ver" class="px-1.5 py-0.5 rounded text-[8px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-400/50 shadow-sm">
-            v2026.11.12-1537
+            v2026.11.12-1422
           </span>
         </div>
         <div id="status-text" class="text-[11px] font-bold text-slate-100 mt-0.5 truncate max-w-[165px]">
@@ -91,10 +91,10 @@
     </div>
     
     <div class="flex items-center space-x-1.5">
-      <!-- View Switcher (カメラHUD / 3Dマップ / 2画面分割) -->
+      <!-- View Switcher (Camera / 3D / Split) -->
       <button id="btn-toggle-view" class="px-2.5 h-8 rounded-full glass-button flex items-center space-x-1 text-[11px] font-bold text-emerald-300 border border-emerald-400/40">
         <i id="view-icon" class="fa-solid fa-layer-group text-xs"></i>
-        <span id="view-mode-label">カメラHUD</span>
+        <span id="view-mode-label">カメラ</span>
       </button>
 
       <!-- Info & Guide Modal -->
@@ -107,67 +107,50 @@
   <!-- MAIN VIEWPORTS CONTAINER -->
   <main id="viewport-root" class="relative w-full h-full flex-1 overflow-hidden">
     
-    <!-- 1. LIVE CAMERA VIEWPORT + 2D PNP REPROJECTION & AR ATTITUDE HUD OVERLAY -->
-    <div id="camera-viewport" class="absolute inset-0 w-full h-full z-10 transition-all duration-300 bg-slate-950">
-      <video id="camera-feed" playsinline webkit-playsinline autoplay muted class="absolute inset-0 w-full h-full object-cover opacity-95"></video>
+    <!-- 1. LIVE CAMERA VIEWPORT + 2D PNP REPROJECTION OVERLAY -->
+    <div id="camera-viewport" class="absolute inset-0 w-full h-full z-10 transition-all duration-300">
+      <video id="camera-feed" playsinline webkit-playsinline autoplay muted class="absolute inset-0 w-full h-full object-cover"></video>
       <canvas id="tracking-canvas" class="absolute inset-0 w-full h-full z-20 pointer-events-none"></canvas>
 
-      <!-- Camera Recovery / Tap-to-Start Banner (Shown if Safari blocks autoplay or stream is inactive) -->
-      <div id="camera-recovery-banner" class="absolute inset-0 z-30 flex items-center justify-center p-6 bg-slate-950/75 backdrop-blur-md transition-opacity duration-300">
-        <div class="glass-panel p-5 rounded-3xl border border-sky-400/40 max-w-xs w-full text-center space-y-3 shadow-2xl">
-          <div class="w-12 h-12 rounded-2xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center mx-auto text-sky-300">
-            <i class="fa-solid fa-camera text-xl"></i>
-          </div>
-          <h2 class="text-sm font-bold text-white">カメラ映像を開始</h2>
-          <p id="camera-recovery-msg" class="text-[11px] text-slate-300 leading-relaxed">
-            iOS Safariのセキュリティ制限により、画面タップで背面カメラとジャイロセンサーを有効化します。
-          </p>
-          <button id="btn-banner-start-cam" class="w-full py-2.5 px-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-extrabold text-xs transition shadow-lg shadow-emerald-500/30 flex items-center justify-center gap-2">
-            <i class="fa-solid fa-play"></i> カメラとセンサーを起動
-          </button>
-        </div>
-      </div>
-
-      <!-- Live 6DoF Telemetry Pills (Top Left) -->
+      <!-- Live PnP Telemetry Pills (Top Left) -->
       <div class="absolute top-24 left-3.5 z-30 pointer-events-none flex flex-col space-y-1.5">
         <div class="px-2.5 py-1 rounded-full text-[10px] font-mono bg-black/80 backdrop-blur-md border border-fuchsia-400/50 text-fuchsia-200 w-max flex items-center gap-1.5 shadow-lg">
           <i class="fa-solid fa-anchor text-fuchsia-400 text-[9px]"></i>
-          <span>3Dアンカー: <strong id="stat-anchors" class="text-white">0</strong> 点</span>
+          <span>3Dアンカーロック: <strong id="stat-anchors" class="text-white">0</strong> 点</span>
         </div>
         <div class="px-2.5 py-1 rounded-full text-[10px] font-mono bg-black/80 backdrop-blur-md border border-cyan-400/40 text-cyan-200 w-max flex items-center gap-1.5 shadow-lg">
-          <i class="fa-solid fa-compass text-cyan-400 text-[9px]"></i>
-          <span>空間姿勢: <strong id="stat-heading-dir" class="text-white">基準正面 (0°)</strong></span>
+          <i class="fa-solid fa-crosshairs text-cyan-400 text-[9px]"></i>
+          <span>再投影RMSE: <strong id="stat-rmse" class="text-white">0.0</strong> px</span>
         </div>
         <div class="px-2.5 py-1 rounded-full text-[10px] font-mono bg-black/80 backdrop-blur-md border border-emerald-400/40 text-emerald-200 w-max flex items-center gap-1.5 shadow-lg">
           <i class="fa-solid fa-cubes text-emerald-400 text-[9px]"></i>
-          <span>点群: <strong id="stat-triangulated" class="text-white">0</strong> | 傾きソース: <strong id="stat-gyro-mode" class="text-amber-300">待機</strong> | <strong id="stat-fps" class="text-sky-300">0</strong>FPS</span>
+          <span>空間点群: <strong id="stat-triangulated" class="text-white">0</strong> | <strong id="stat-fps" class="text-sky-300">0</strong> FPS</span>
+        </div>
+      </div>
+
+      <!-- Center Optical Axis Crosshair -->
+      <div class="absolute inset-0 pointer-events-none flex items-center justify-center z-15">
+        <div class="w-16 h-16 rounded-full border border-sky-400/35 border-dashed flex items-center justify-center">
+          <div class="w-1.5 h-1.5 rounded-full bg-sky-400"></div>
         </div>
       </div>
     </div>
 
-    <!-- 2. THREE.JS 3D SPATIAL RECONSTRUCTION & 3D DEVICE TILT VIEWPORT -->
+    <!-- 2. THREE.JS 3D SPATIAL RECONSTRUCTION & MEASUREMENT VIEWPORT -->
     <div id="three-viewport" class="absolute inset-0 w-full h-full z-0 opacity-0 pointer-events-none transition-all duration-300">
       <div id="three-canvas-container" class="w-full h-full"></div>
 
-      <!-- 3D Map Header Badge & Camera Follow / Overview Toggle -->
+      <!-- 3D Map Header Badge -->
       <div class="absolute top-24 left-3.5 z-20 pointer-events-none flex flex-col space-y-1.5">
         <span class="px-3 py-1.5 rounded-xl text-[11px] font-bold bg-indigo-950/90 border border-indigo-400/40 text-indigo-200 backdrop-blur-md flex items-center gap-1.5 shadow-lg">
-          <i class="fa-solid fa-mobile-screen-button text-sky-400"></i> 3D空間点群 & 端末6DoF傾きマップ
+          <i class="fa-solid fa-cube text-emerald-400"></i> 3D空間点群 & 自己位置マップ (+Y上空)
         </span>
         <span id="measure-instructions-badge" class="hidden text-[10px] font-semibold text-amber-200 bg-amber-950/90 px-2.5 py-1 rounded-lg backdrop-blur-md border border-amber-400/50 shadow-md">
           <i class="fa-solid fa-hand-pointer text-amber-400"></i> 3D点群を2点タップして距離計測
         </span>
-        <div class="flex items-center gap-1.5 flex-wrap">
-          <span class="text-[9px] text-slate-300 bg-black/75 px-2 py-0.5 rounded-md backdrop-blur-sm border border-white/10">
-            <i class="fa-solid fa-arrows-up-down-left-right text-sky-400"></i> ドラッグ回転 / ピンチ
-          </span>
-          <button id="btn-3d-follow" class="pointer-events-auto text-[10px] font-bold text-cyan-200 bg-cyan-950/95 px-2.5 py-1 rounded-lg border border-cyan-400/60 shadow-md active:scale-95 transition">
-            <i class="fa-solid fa-crosshairs text-cyan-400"></i> 視点: 端末追従
-          </button>
-          <button id="btn-3d-rear-view" class="pointer-events-auto text-[10px] font-bold text-emerald-200 bg-emerald-950/95 px-2.5 py-1 rounded-lg border border-emerald-400/60 shadow-md active:scale-95 transition">
-            <i class="fa-solid fa-eye text-emerald-400"></i> 背面斜めアングル
-          </button>
-        </div>
+        <span class="text-[9px] text-slate-300 bg-black/75 px-2 py-0.5 rounded-md backdrop-blur-sm border border-white/10 w-max">
+          <i class="fa-solid fa-arrows-up-down-left-right text-sky-400"></i> ドラッグで回転 / 2本指ズーム
+        </span>
       </div>
 
       <!-- Floating 3D Measure Tool HUD (Active when Measuring) -->
@@ -198,7 +181,7 @@
       </span>
     </div>
 
-    <!-- 2D TOP-DOWN MINI RADAR (XZ PLANE WITH FOV CONE) -->
+    <!-- 2D TOP-DOWN MINI RADAR (XZ PLANE) -->
     <div class="absolute bottom-52 right-3.5 z-30 w-24 h-24 rounded-2xl glass-panel border border-sky-400/30 overflow-hidden shadow-2xl flex flex-col items-center justify-center pointer-events-none">
       <canvas id="radar-canvas" class="w-full h-full"></canvas>
       <span class="absolute bottom-1 text-[8px] font-mono text-sky-300 bg-black/75 px-1.5 rounded">XZ RADAR</span>
@@ -223,23 +206,23 @@
 
     <div class="flex border-b border-white/10 bg-black/40 text-[11px] font-semibold text-slate-300">
       <button id="tab-traj-2d" class="flex-1 py-2 px-3 border-b-2 border-purple-400 text-purple-300 bg-purple-500/10 transition flex items-center justify-center gap-1">
-        <i class="fa-solid fa-draw-polygon"></i> 平面軌跡・向き
+        <i class="fa-solid fa-draw-polygon"></i> 平面軌跡
       </button>
       <button id="tab-traj-measures" class="flex-1 py-2 px-3 border-b-2 border-transparent hover:text-white transition flex items-center justify-center gap-1">
         <i class="fa-solid fa-ruler"></i> 計測履歴
       </button>
       <button id="tab-traj-stats" class="flex-1 py-2 px-3 border-b-2 border-transparent hover:text-white transition flex items-center justify-center gap-1">
-        <i class="fa-solid fa-sliders"></i> 6DoF精度
+        <i class="fa-solid fa-sliders"></i> 点群・精度
       </button>
     </div>
 
     <div class="p-3 overflow-y-auto space-y-3 text-xs flex-1">
-      <!-- Tab 1: 2D XZ Footprint with Heading Cone -->
+      <!-- Tab 1: 2D XZ Footprint -->
       <div id="view-traj-2d" class="space-y-2">
         <div class="relative w-full h-44 bg-slate-950 rounded-2xl border border-purple-400/30 overflow-hidden flex items-center justify-center">
           <canvas id="traj-canvas-2d" class="w-full h-full"></canvas>
           <div class="absolute top-2 left-2 text-[9px] font-mono bg-black/80 px-2 py-0.5 rounded text-purple-300 border border-purple-400/20">
-            XZ平面図 (上方向が基準正面 -Z / 1マス=1.0m)
+            XZ平面図 (1マス = 1.0m)
           </div>
         </div>
       </div>
@@ -257,7 +240,7 @@
         </div>
       </div>
 
-      <!-- Tab 3: PnP 6DoF Solver & Point Cloud Stats -->
+      <!-- Tab 3: PnP Solver & Point Cloud Stats -->
       <div id="view-traj-stats" class="hidden space-y-2.5">
         <div class="grid grid-cols-2 gap-2 text-[10px] font-mono">
           <div class="glass-card p-2 rounded-xl">
@@ -303,7 +286,7 @@
     </div>
   </section>
 
-  <!-- LIVE 6DOF SELF-POSITION & ORIENTATION TELEMETRY CARDS -->
+  <!-- LIVE SELF-POSITION TELEMETRY CARDS -->
   <section class="absolute bottom-20 left-3 right-3 z-30 pointer-events-none">
     <div class="glass-panel p-2.5 rounded-2xl pointer-events-auto shadow-2xl border border-sky-500/30 space-y-2">
       
@@ -311,7 +294,7 @@
         <div class="flex items-center space-x-1.5">
           <div class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></div>
           <span class="text-[11px] font-bold uppercase tracking-wider text-cyan-300">
-            6DoF 自己位置 & 端末3D傾き
+            自己位置 (基準空間からの変位)
           </span>
         </div>
         <span class="text-[10px] text-slate-300 font-mono">
@@ -335,17 +318,11 @@
         </div>
       </div>
 
-      <!-- 6DoF Orientation Readout (Spatial Yaw / Pitch / Roll) -->
-      <div class="grid grid-cols-3 gap-1.5 text-center font-mono text-[9px] text-slate-200">
-        <div class="bg-fuchsia-950/50 border border-fuchsia-400/30 py-1 rounded-lg">
-          方位 Yaw: <span id="ori-yaw" class="font-extrabold text-fuchsia-300">0.0°</span>
-        </div>
-        <div class="bg-amber-950/50 border border-amber-400/30 py-1 rounded-lg">
-          仰俯 Pitch: <span id="ori-pitch" class="font-extrabold text-amber-300">0.0°</span>
-        </div>
-        <div class="bg-cyan-950/50 border border-cyan-400/30 py-1 rounded-lg">
-          傾き Roll: <span id="ori-roll" class="font-extrabold text-cyan-300">0.0°</span>
-        </div>
+      <!-- Orientation Euler Readout -->
+      <div class="grid grid-cols-3 gap-1.5 text-center font-mono text-[9px] text-slate-300">
+        <div class="bg-black/30 py-0.5 rounded-lg">Yaw: <span id="ori-yaw" class="font-bold text-fuchsia-300">0.0°</span></div>
+        <div class="bg-black/30 py-0.5 rounded-lg">Pitch: <span id="ori-pitch" class="font-bold text-amber-300">0.0°</span></div>
+        <div class="bg-black/30 py-0.5 rounded-lg">Roll: <span id="ori-roll" class="font-bold text-cyan-300">0.0°</span></div>
       </div>
 
     </div>
@@ -361,7 +338,7 @@
       <span id="label-cam-btn" class="text-[9px] font-bold">カメラ起動</span>
     </button>
 
-    <!-- 2. Reset Origin & Heading -->
+    <!-- 2. Reset Origin -->
     <button id="btn-reset-origin" class="flex flex-col items-center justify-center text-slate-200 active:scale-95 transition">
       <div class="w-9 h-9 rounded-full glass-button flex items-center justify-center mb-1 text-rose-400">
         <i class="fa-solid fa-bullseye text-xs"></i>
@@ -369,12 +346,12 @@
       <span class="text-[9px] font-medium">原点リセット</span>
     </button>
 
-    <!-- 3. Toggle 2D Overlay & AR Attitude HUD -->
+    <!-- 3. Toggle 2D Overlay -->
     <button id="btn-toggle-vectors" class="flex flex-col items-center justify-center text-slate-200 active:scale-95 transition">
       <div id="icon-vectors-box" class="w-9 h-9 rounded-full glass-button flex items-center justify-center mb-1 text-cyan-400">
         <i class="fa-solid fa-crosshairs text-xs"></i>
       </div>
-      <span class="text-[9px] font-medium">AR姿勢HUD</span>
+      <span class="text-[9px] font-medium">2D投影表示</span>
     </button>
 
     <!-- 4. 3D Measure Mode Toggle -->
@@ -382,7 +359,7 @@
       <div id="icon-measure-box" class="w-9 h-9 rounded-full glass-button flex items-center justify-center mb-1 text-amber-400">
         <i class="fa-solid fa-ruler-combined text-xs"></i>
       </div>
-      <span id="label-measure-btn" class="text-[9px] font-medium">計測</span>
+      <span id="label-measure-btn" class="text-[9px] font-medium">3D計測</span>
     </button>
 
     <!-- 5. Stats & Export Drawer -->
@@ -402,7 +379,7 @@
           <h2 class="text-base font-bold text-white flex items-center gap-2">
             <i class="fa-solid fa-anchor text-fuchsia-400"></i> Map-to-Frame PnP SLAM
           </h2>
-          <span class="text-[10px] font-mono text-cyan-300 font-bold">ビルドバージョン: v2026.11.12-1537</span>
+          <span class="text-[10px] font-mono text-cyan-300 font-bold">ビルドバージョン: v2026.11.12-1422</span>
         </div>
         <button id="btn-close-modal" class="p-2 text-slate-400 hover:text-white">
           <i class="fa-solid fa-xmark text-xl"></i>
@@ -411,18 +388,18 @@
 
       <div class="space-y-2.5 text-xs text-slate-300 leading-relaxed">
         <div class="p-3 glass-card rounded-2xl border border-fuchsia-500/30">
-          <h3 class="font-bold text-fuchsia-300 text-xs mb-1">1. クォータニオン直接変換による3D端末傾き再現</h3>
-          <p>iPhoneを縦持ち（約90°起立状態）で構えた際にもジンバルロックを起こさないよう、iOSの3軸ジャイロセンサー（DeviceOrientation）および画面回転角から厳密な3Dクォータニオンを直接計算。上下の煽り（Pitch）・左右の傾け（Roll）・水平旋回（Yaw）が3Dマップ上のiPhoneモデルにリアルタイム反映されます。</p>
+          <h3 class="font-bold text-fuchsia-300 text-xs mb-1">1. 空間基準アンカー & PnP自己位置推定</h3>
+          <p>カメラが捉えた空間内の特徴点を3Dアンカー群として固定し、毎フレーム「3Dアンカーの再投影位置」と「実際の画像検出位置」の誤差（Reprojection RMSE）をGauss-Newton法で最小化してカメラの3次元変位（X, Y, Z）を直接逆算します。</p>
         </div>
 
         <div class="p-3 glass-card rounded-2xl border border-sky-500/30">
-          <h3 class="font-bold text-sky-300 text-xs mb-1">2. 水平基準リング（World Level Ring）と姿勢リング比較</h3>
-          <p>端末の周囲には常に地面と水平を保つ「白い水平基準リング」と、端末と一緒に傾く「ゴールドの姿勢リング」を二重配置。わずかな端末の傾きでも3Dマップ上で直感的に把握できます。</p>
+          <h3 class="font-bold text-sky-300 text-xs mb-1">2. 多視点三角測量による奥行き精緻化</h3>
+          <p>iPhone水平画角68°モデルに基づき、8cm以上のカメラ移動と4.0°以上の視差角が得られたアンカー点を三角測量で実空間奥行き（0.3m〜6.0m）へ更新。新しい場所へ移動するとキーフレームを自動追加して空間マップを拡張します。</p>
         </div>
 
         <div class="p-3 glass-card rounded-2xl border border-amber-500/30">
-          <h3 class="font-bold text-amber-300 text-xs mb-1">3. Map-to-Frame PnP & 3D空間距離計測</h3>
-          <p>空間特徴点を3DマップへRGBカラー点群として三角測量・固定し、再投影誤差の最小化（Gauss-Newton）で自己位置を安定推定。「計測」モードでは3D点群を2点タップして実空間距離（cm / m）を測定可能です。</p>
+          <h3 class="font-bold text-amber-300 text-xs mb-1">3. 3D空間距離計測ツール</h3>
+          <p>「3D計測」ボタンを押し、3Dマップ上で蓄積されたRGB点群（または現在地）から2点をタップすると、空間内の実距離（cm / m）を計測・記録できます。</p>
         </div>
       </div>
 
@@ -438,9 +415,9 @@
   <script>
     /**
      * iPhone Visual SLAM with Map-to-Frame PnP Gauss-Newton Solver
-     * Version: v2026.11.12-1537
+     * Version: v2026.11.12-1422
      */
-    const APP_BUILD_VERSION = "v2026.11.12-1537";
+    const APP_BUILD_VERSION = "v2026.11.12-1422";
 
     // Pinhole Camera Intrinsics (iPhone Rear Wide ~68 deg horizontal FOV)
     const PROC_WIDTH = 240;
@@ -449,8 +426,6 @@
     const FOCAL_PX = (PROC_WIDTH * 0.5) / Math.tan((H_FOV_DEG * 0.5 * Math.PI) / 180.0);
     const CX = PROC_WIDTH * 0.5;
     const CY = PROC_HEIGHT * 0.5;
-    const TAN_HALF_FOV_X = (PROC_WIDTH * 0.5) / FOCAL_PX;
-    const TAN_HALF_FOV_Y = (PROC_HEIGHT * 0.5) / FOCAL_PX;
 
     const state = {
       isCameraReady: false,
@@ -458,30 +433,17 @@
       viewMode: 'camera', // 'camera' | '3d' | 'split'
       showVectors: true,
       hasSensorPermission: false,
-      followCamera3D: true, // '端末追従' (true) vs '全体俯瞰' (false)
 
       fps: 0,
       frameCount: 0,
       lastFpsUpdate: performance.now(),
       lastFrameTime: performance.now(),
 
-      // 6DoF Camera Pose in Right-Handed Y-up Measurement Space (+X: Right, +Y: Up, -Z: Calibrated Forward)
-      pose: {
-        x: 0, y: 0, z: 0,
-        pitch: 0, yaw: 0, roll: 0
-      },
-      // Exact 3D World Quaternion representing the iPhone's physical orientation in Three.js Y-up space
-      deviceWorldQuaternion: new THREE.Quaternion(),
-      prevFrameQuaternion: null,
-
-      // Optical-flow fallback orientation angles (when gyroscope is unavailable/denied)
       // Current Camera Pose in Right-Handed Y-up World (+X: Right, +Y: Up, -Z: Forward)
       pose: {
         x: 0, y: 0, z: 0,
         pitch: 0, yaw: 0, roll: 0
       },
-      // Exact 3D World Quaternion for the 3D smartphone avatar (gimbal-lock free)
-      deviceWorldQuaternion: new THREE.Quaternion(),
       lastPose: { x: 0, y: 0, z: 0 },
       totalDistance: 0,
       reprojectionRMSE: 0,
@@ -489,22 +451,19 @@
       keyframeCount: 0,
       lastKeyframePose: { x: 0, y: 0, z: 0, yaw: 0, pitch: 0 },
 
-      // Gyroscope Sensor State (Exact 3D Quaternion Calibration)
-      sensor: {
-        isActive: false,
       // Gyroscope Orientation Tracking
       sensor: {
         initAlpha: null, initBeta: null, initGamma: null,
-        zeroYawQuatInv: null,
         rawAlpha: 0, rawBeta: 0, rawGamma: 0
       },
 
       // Active 2D-3D Tracked Features & Persistent World Anchors
+      // Each item: { id, u, v, prevU, prevV, trail: [{u,v}], worldPos: THREE.Vector3, birthOrigin: THREE.Vector3, birthRay: THREE.Vector3, isTriangulated: bool, projU, projV, residualPx, color: {r,g,b}, age, lostFrames }
       activeAnchors: [],
       nextAnchorId: 1,
 
-      // Triangulated Persistent 3D RGB Point Cloud Landmarks
-      triangulatedMapPoints: [],
+      // Triangulated Persistent 3D Point Cloud Landmarks
+      triangulatedMapPoints: [], // { position: THREE.Vector3, color: {r,g,b} }
       trajectory3D: [],
 
       // 3D Measurement State
@@ -534,15 +493,11 @@
     const pipWindow = document.getElementById('pip-window');
     const pipContent = document.getElementById('pip-content');
     const threeCanvasContainer = document.getElementById('three-canvas-container');
-    const cameraRecoveryBanner = document.getElementById('camera-recovery-banner');
-    const cameraRecoveryMsg = document.getElementById('camera-recovery-msg');
-    const btnBannerStartCam = document.getElementById('btn-banner-start-cam');
 
     const statusIndicator = document.getElementById('status-indicator');
     const statusText = document.getElementById('status-text');
     const statAnchorsElem = document.getElementById('stat-anchors');
-    const statHeadingDirElem = document.getElementById('stat-heading-dir');
-    const statGyroModeElem = document.getElementById('stat-gyro-mode');
+    const statRmseElem = document.getElementById('stat-rmse');
     const statTriangulatedElem = document.getElementById('stat-triangulated');
     const statFpsElem = document.getElementById('stat-fps');
 
@@ -556,8 +511,6 @@
 
     const btnToggleView = document.getElementById('btn-toggle-view');
     const viewModeLabel = document.getElementById('view-mode-label');
-    const btn3DFollow = document.getElementById('btn-3d-follow');
-    const btn3DRearView = document.getElementById('btn-3d-rear-view');
     const btnStartCam = document.getElementById('btn-start-cam');
     const labelCamBtn = document.getElementById('label-cam-btn');
     const btnResetOrigin = document.getElementById('btn-reset-origin');
@@ -602,7 +555,7 @@
     const btnCloseModal = document.getElementById('btn-close-modal');
     const btnModalGotit = document.getElementById('btn-modal-gotit');
 
-    // Previous grayscale frame buffer
+    // Previous grayscale frame buffer for optical flow block matching
     let prevGrayFrame = null;
 
     // --- Three.js Scene Objects ---
@@ -610,12 +563,12 @@
     let trajectoryMeshGroup, pillarsGroup, measurementGroup, snapCursorMesh;
     let startMarkerMesh, currentMarkerMesh;
     let pointCloudParticles, pointCloudGeometry;
-    let cameraAvatarGroup, worldLevelRingMesh;
+    let cameraAvatarGroup;
 
     // 3D Orbit Camera Parameters
     let is3DTouchDragging = false, previousTouchX = 0, previousTouchY = 0;
     let initialPinchDist = 0;
-    let orbitAzimuth = 0.42, orbitElevation = 0.45, orbitDistance = 2.4;
+    let orbitAzimuth = 0.25, orbitElevation = 0.45, orbitDistance = 3.8;
 
     // ==========================================
     // 1. INITIALIZATION & CAMERA STREAMING
@@ -632,7 +585,8 @@
       setupEventListeners();
       updateViewportLayout();
 
-      await startCameraAndSensors(false);
+      // Attempt initial camera start
+      await startCameraAndSensors();
       requestAnimationFrame(mainLoop);
     });
 
@@ -660,109 +614,45 @@
       }
     }
 
-    function prepareVideoElementAttributes(vid) {
-      vid.setAttribute('playsinline', '');
-      vid.setAttribute('webkit-playsinline', '');
-      vid.setAttribute('autoplay', '');
-      vid.setAttribute('muted', '');
-      vid.playsInline = true;
-      vid.muted = true;
-      vid.autoplay = true;
-    }
-
-    function waitForVideoReady(vid) {
-      return new Promise((resolve) => {
-        if (vid.readyState >= 2 && vid.videoWidth > 0) {
-          resolve();
-          return;
-        }
-        let settled = false;
-        const done = () => {
-          if (settled) return;
-          settled = true;
-          vid.removeEventListener('loadedmetadata', done);
-          vid.removeEventListener('loadeddata', done);
-          vid.removeEventListener('canplay', done);
-          resolve();
-        };
-        vid.addEventListener('loadedmetadata', done);
-        vid.addEventListener('loadeddata', done);
-        vid.addEventListener('canplay', done);
-        setTimeout(done, 1500);
-      });
-    }
-
-    async function startCameraAndSensors(fromUserGesture = false) {
+    async function startCameraAndSensors() {
       setStatus('カメラ・センサー起動中...', 'bg-amber-500');
-      if (fromUserGesture) {
-        await requestSensorPermissions();
-      }
-
-      prepareVideoElementAttributes(videoElem);
-
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setStatus('カメラAPI非対応 (HTTPS必須)', 'bg-rose-500');
-        cameraRecoveryMsg.textContent = "このブラウザ環境ではカメラAPIが利用できません。HTTPS接続のSafariで開いてください。";
-        cameraRecoveryBanner.classList.remove('opacity-0', 'pointer-events-none');
-        return;
-      }
+      await requestSensorPermissions();
 
       try {
-        // Re-use active live tracks if already acquired
-        const existingStream = videoElem.srcObject;
-        const hasLiveTrack = existingStream && existingStream.getVideoTracks().some(t => t.readyState === 'live');
+        if (!videoElem.srcObject) {
+          const constraints = {
+            video: {
+              facingMode: { ideal: "environment" },
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            },
+            audio: false
+          };
 
-        if (!hasLiveTrack) {
-          const constraintChain = [
-            { video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
-            { video: { facingMode: "environment" }, audio: false },
-            { video: true, audio: false }
-          ];
-
-          let stream = null;
-          let lastErr = null;
-          for (const constraints of constraintChain) {
-            try {
-              stream = await navigator.mediaDevices.getUserMedia(constraints);
-              if (stream) break;
-            } catch (e) {
-              lastErr = e;
-            }
+          let stream;
+          try {
+            stream = await navigator.mediaDevices.getUserMedia(constraints);
+          } catch (e) {
+            stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
           }
 
-          if (!stream) throw lastErr || new Error("Unable to acquire camera stream");
           videoElem.srcObject = stream;
         }
 
-        await waitForVideoReady(videoElem);
         await videoElem.play();
-
         state.isCameraReady = true;
         state.isTracking = true;
         labelCamBtn.textContent = "稼働中";
-        cameraRecoveryBanner.classList.add('opacity-0', 'pointer-events-none');
-        setStatus('6DoF 空間ロック準備完了', 'bg-emerald-500');
+        setStatus('PnP 空間ロック準備完了', 'bg-emerald-500');
       } catch (err) {
-        console.warn("Camera start/autoplay paused:", err);
-        state.isCameraReady = false;
-        labelCamBtn.textContent = "カメラ起動";
-        cameraRecoveryMsg.textContent = fromUserGesture
-          ? `カメラの起動に失敗しました (${err.name || 'Permission'})。Safariのカメラ設定を確認し、再度タップしてください。`
-          : "画面下のボタンをタップして背面カメラ映像を開始してください。";
-        cameraRecoveryBanner.classList.remove('opacity-0', 'pointer-events-none');
+        console.warn("Camera gesture required:", err);
         setStatus('「カメラ起動」をタップ', 'bg-amber-500');
       }
     }
 
     function ensureVideoPlaying() {
-      if (!videoElem) return;
-      prepareVideoElementAttributes(videoElem);
-      if (videoElem.srcObject && videoElem.paused) {
-        videoElem.play().then(() => {
-          state.isCameraReady = true;
-          state.isTracking = true;
-          cameraRecoveryBanner.classList.add('opacity-0', 'pointer-events-none');
-        }).catch(() => {});
+      if (videoElem && videoElem.srcObject && videoElem.paused) {
+        videoElem.play().catch(() => {});
       }
     }
 
@@ -772,16 +662,11 @@
     }
 
     // ==========================================
-    // 2. EXACT 3D QUATERNION ORIENTATION & SENSORS
+    // 2. SENSORS & UI EVENT HANDLERS
     // ==========================================
     function setupEventListeners() {
       btnStartCam.addEventListener('click', async () => {
-        await startCameraAndSensors(true);
-        ensureVideoPlaying();
-      });
-
-      btnBannerStartCam.addEventListener('click', async () => {
-        await startCameraAndSensors(true);
+        await startCameraAndSensors();
         ensureVideoPlaying();
       });
 
@@ -794,26 +679,6 @@
 
       btnToggleView.addEventListener('click', cycleViewMode);
       pipWindow.addEventListener('click', cycleViewMode);
-
-      btn3DFollow.addEventListener('click', () => {
-        state.followCamera3D = !state.followCamera3D;
-        if (state.followCamera3D) {
-          btn3DFollow.innerHTML = '<i class="fa-solid fa-crosshairs text-cyan-400"></i> 視点: 端末追従';
-          orbitDistance = Math.min(orbitDistance, 2.8);
-        } else {
-          btn3DFollow.innerHTML = '<i class="fa-solid fa-globe text-amber-400"></i> 視点: 全体俯瞰';
-          orbitDistance = Math.max(orbitDistance, 4.2);
-        }
-      });
-
-      btn3DRearView.addEventListener('click', () => {
-        state.followCamera3D = true;
-        btn3DFollow.innerHTML = '<i class="fa-solid fa-crosshairs text-cyan-400"></i> 視点: 端末追従';
-        // Position orbit camera behind & slightly right-above the device's current heading
-        orbitAzimuth = THREE.MathUtils.degToRad(state.pose.yaw) + 0.45;
-        orbitElevation = 0.42;
-        orbitDistance = 2.0;
-      });
 
       // 3D Measure Controls
       btnMeasureMode.addEventListener('click', toggleMeasureMode);
@@ -848,7 +713,7 @@
       window.addEventListener('deviceorientation', handleOrientation, true);
       document.body.addEventListener('touchstart', ensureVideoPlaying, { passive: true });
 
-      // 3D Viewport Touch & Mouse Orbit, Pinch Zoom & Tap-to-Measure
+      // 3D Viewport Touch Orbit, Pinch Zoom & Tap-to-Measure
       let touchStartTime = 0;
       let touchStartPos = { x: 0, y: 0 };
 
@@ -872,8 +737,8 @@
         if (is3DTouchDragging && e.touches.length === 1) {
           const dx = e.touches[0].clientX - previousTouchX;
           const dy = e.touches[0].clientY - previousTouchY;
-          orbitAzimuth -= dx * 0.009;
-          orbitElevation = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, orbitElevation + dy * 0.009));
+          orbitAzimuth -= dx * 0.008;
+          orbitElevation = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, orbitElevation + dy * 0.008));
           previousTouchX = e.touches[0].clientX;
           previousTouchY = e.touches[0].clientY;
         } else if (e.touches.length === 2 && initialPinchDist > 0) {
@@ -882,7 +747,7 @@
             e.touches[0].clientY - e.touches[1].clientY
           );
           const scale = initialPinchDist / Math.max(10, curDist);
-          orbitDistance = Math.max(0.85, Math.min(14.0, orbitDistance * scale));
+          orbitDistance = Math.max(1.0, Math.min(14.0, orbitDistance * scale));
           initialPinchDist = curDist;
         }
       }, { passive: true });
@@ -895,34 +760,6 @@
         }
         is3DTouchDragging = false;
         initialPinchDist = 0;
-      });
-
-      // Mouse support for desktop preview testing
-      let isMouseDragging = false;
-      threeViewport.addEventListener('mousedown', (e) => {
-        isMouseDragging = true;
-        previousTouchX = e.clientX;
-        previousTouchY = e.clientY;
-        touchStartTime = performance.now();
-        touchStartPos = { x: e.clientX, y: e.clientY };
-      });
-      window.addEventListener('mousemove', (e) => {
-        if (!isMouseDragging) return;
-        const dx = e.clientX - previousTouchX;
-        const dy = e.clientY - previousTouchY;
-        orbitAzimuth -= dx * 0.008;
-        orbitElevation = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, orbitElevation + dy * 0.008));
-        previousTouchX = e.clientX;
-        previousTouchY = e.clientY;
-      });
-      window.addEventListener('mouseup', (e) => {
-        if (!isMouseDragging) return;
-        const dt = performance.now() - touchStartTime;
-        const moveDist = Math.hypot(e.clientX - touchStartPos.x, e.clientY - touchStartPos.y);
-        if (dt < 300 && moveDist < 8) {
-          handle3DTapForMeasurement(e.clientX, e.clientY);
-        }
-        isMouseDragging = false;
       });
     }
 
@@ -939,78 +776,22 @@
       }
     }
 
-    /**
-     * Exact W3C DeviceOrientation (Z-X'-Y'' intrinsic) -> Three.js World Y-Up Quaternion Conversion
-     * Avoids gimbal lock when holding iPhone upright (~90 deg pitch) in portrait mode!
-     * - When iPhone is held vertically facing forward: Pitch = 0°, Roll = 0°, Yaw = calibrated 0° (-Z).
-     * - Tilting top of iPhone backward (looking at ceiling): Pitch > 0° (+X rotation in Three.js).
-     * - Tilting top of iPhone forward (looking at floor): Pitch < 0° (-X rotation in Three.js).
-     * - Rolling iPhone left/right: Roll updates around local -Z optical axis.
-     */
-    const _zee = new THREE.Vector3(0, 0, 1);
-    const _eulerDevice = new THREE.Euler();
-    const _q0 = new THREE.Quaternion();
-    const _q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)); // -PI/2 around X (aligns screen normal +Z with camera sightline -Z)
-    const _worldUp = new THREE.Vector3(0, 1, 0);
-
-    function computeWorldQuaternionFromDeviceOrientation(alphaDeg, betaDeg, gammaDeg, screenOrientDeg) {
-      const alpha = THREE.MathUtils.degToRad(alphaDeg || 0); // Z
-      const beta = THREE.MathUtils.degToRad(betaDeg || 0);   // X'
-      const gamma = THREE.MathUtils.degToRad(gammaDeg || 0); // Y''
-      const orient = THREE.MathUtils.degToRad(screenOrientDeg || 0);
-
-      // Intrinsic Z-X'-Y'' order per W3C DeviceOrientation specification
-      _eulerDevice.set(beta, alpha, -gamma, 'YXZ');
-      const q = new THREE.Quaternion().setFromEuler(_eulerDevice);
-      q.multiply(_q1); // Camera looks out the back (-Z) instead of top edge (+Y)
-      q.multiply(_q0.setFromAxisAngle(_zee, -orient)); // Adjust for screen orientation
-      return q;
-    }
-
     function handleOrientation(e) {
-      if (e.alpha === null && e.beta === null && e.gamma === null) return;
-
-      // Preserve legacy Euler tracking state for untouched PnP solver & telemetry
+      if (e.alpha === null) return;
       if (state.sensor.initAlpha === null) {
         state.sensor.initAlpha = e.alpha;
         state.sensor.initBeta = e.beta;
         state.sensor.initGamma = e.gamma;
       }
 
-      // Compute accurate gimbal-lock-free 3D Quaternion from DeviceOrientation (alpha, beta, gamma)
-      const alphaRad = THREE.MathUtils.degToRad(e.alpha || 0);
-      const betaRad = THREE.MathUtils.degToRad(e.beta || 0);
-      const gammaRad = THREE.MathUtils.degToRad(e.gamma || 0);
-      const screenOrientDeg = (window.screen && window.screen.orientation && window.screen.orientation.angle)
-        || window.orientation || 0;
-      const orientRad = THREE.MathUtils.degToRad(screenOrientDeg);
-
-      // Intrinsic Z-X'-Y'' order per W3C DeviceOrientation spec, rotated -PI/2 around X so rear camera looks along -Z
-      const eulerDevice = new THREE.Euler(betaRad, alphaRad, -gammaRad, 'YXZ');
-      const rawWorldQuat = new THREE.Quaternion().setFromEuler(eulerDevice);
-      const qCamAlign = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
-      const qScreen = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -orientRad);
-      rawWorldQuat.multiply(qCamAlign).multiply(qScreen);
-
-      // Initial horizontal yaw zero-calibration around World +Y while preserving gravity-aligned Pitch & Roll
-      if (state.sensor.zeroYawQuatInv === null) {
-        const forwardVec = new THREE.Vector3(0, 0, -1).applyQuaternion(rawWorldQuat);
-        const initialYawRad = Math.atan2(-forwardVec.x, -forwardVec.z);
-        state.sensor.zeroYawQuatInv = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -initialYawRad);
-      }
-
-      const calibratedQuat = state.sensor.zeroYawQuatInv.clone().multiply(rawWorldQuat).normalize();
-      state.deviceWorldQuaternion.copy(calibratedQuat);
-
-      // Extract clean YXZ Euler angles from calibrated 3D quaternion for PnP & telemetry readout
-      const yxz = new THREE.Euler().setFromQuaternion(calibratedQuat, 'YXZ');
-      let yaw = THREE.MathUtils.radToDeg(yxz.y);
+      let yaw = e.alpha - state.sensor.initAlpha;
       if (yaw > 180) yaw -= 360;
       if (yaw < -180) yaw += 360;
 
+      // Map device orientation to Three.js Y-up Euler angles
       state.pose.yaw = yaw;
-      state.pose.pitch = THREE.MathUtils.radToDeg(yxz.x);
-      state.pose.roll = THREE.MathUtils.radToDeg(yxz.z);
+      state.pose.pitch = e.beta - state.sensor.initBeta;
+      state.pose.roll = -(e.gamma - state.sensor.initGamma);
 
       yawElem.textContent = `${state.pose.yaw.toFixed(1)}°`;
       pitchElem.textContent = `${state.pose.pitch.toFixed(1)}°`;
@@ -1028,7 +809,7 @@
       ensureVideoPlaying();
 
       if (state.viewMode === 'camera') {
-        cameraViewport.className = "absolute inset-0 w-full h-full z-10 opacity-100 pointer-events-auto transition-all duration-300 bg-slate-950";
+        cameraViewport.className = "absolute inset-0 w-full h-full z-10 opacity-100 pointer-events-auto transition-all duration-300";
         threeViewport.className = "absolute inset-0 w-full h-full z-0 opacity-0 pointer-events-none transition-all duration-300";
         pipWindow.classList.remove('hidden');
 
@@ -1037,7 +818,7 @@
         }
         pipContent.innerHTML = '';
         pipContent.appendChild(threeCanvasContainer);
-        viewModeLabel.textContent = "カメラHUD";
+        viewModeLabel.textContent = "カメラ";
       } else if (state.viewMode === '3d') {
         threeViewport.className = "absolute inset-0 w-full h-full z-10 opacity-100 pointer-events-auto transition-all duration-300";
         cameraViewport.className = "absolute inset-0 w-full h-full z-0 opacity-0 pointer-events-none transition-all duration-300";
@@ -1050,32 +831,46 @@
         pipContent.appendChild(videoElem);
         viewModeLabel.textContent = "3Dマップ";
       } else {
-        // Split View: Top 3D Map, Bottom Live Camera HUD
-        threeViewport.className = "absolute top-0 left-0 right-0 h-1/2 z-10 opacity-100 pointer-events-auto transition-all duration-300 border-b border-sky-500/40";
-        cameraViewport.className = "absolute bottom-0 left-0 right-0 h-1/2 z-10 opacity-100 pointer-events-auto transition-all duration-300 bg-slate-950";
+        // Split View: Top Camera, Bottom 3D Map
+        cameraViewport.className = "absolute top-0 left-0 right-0 h-1/2 z-10 opacity-100 pointer-events-auto border-b border-sky-400/40 transition-all duration-300";
+        threeViewport.className = "absolute bottom-0 left-0 right-0 h-1/2 z-10 opacity-100 pointer-events-auto transition-all duration-300";
         pipWindow.classList.add('hidden');
 
-        if (!threeViewport.contains(threeCanvasContainer)) {
-          threeViewport.insertBefore(threeCanvasContainer, threeViewport.firstChild);
-        }
         if (!cameraViewport.contains(videoElem)) {
           cameraViewport.insertBefore(videoElem, overlayCanvas);
+        }
+        if (!threeViewport.contains(threeCanvasContainer)) {
+          threeViewport.insertBefore(threeCanvasContainer, threeViewport.firstChild);
         }
         viewModeLabel.textContent = "2画面分割";
       }
 
-      setTimeout(resizeCanvases, 40);
+      setTimeout(() => {
+        resizeCanvases();
+        ensureVideoPlaying();
+      }, 50);
     }
 
     // ==========================================
-    // 3. MAIN LOOP & SHI-TOMASI FEATURE EXTRACTION
+    // 3. MAP-TO-FRAME PNP SLAM ALGORITHM
     // ==========================================
-    function mainLoop(now) {
-      requestAnimationFrame(mainLoop);
-
-      const dt = Math.min(0.1, (now - state.lastFrameTime) / 1000.0);
+    function mainLoop() {
+      const now = performance.now();
+      const dt = Math.min(0.1, (now - state.lastFrameTime) / 1000);
       state.lastFrameTime = now;
 
+      if (state.isTracking && videoElem.readyState >= 2) {
+        procCtx.drawImage(videoElem, 0, 0, PROC_WIDTH, PROC_HEIGHT);
+        const frameData = procCtx.getImageData(0, 0, PROC_WIDTH, PROC_HEIGHT);
+        runPnPVisualSLAM(frameData, dt);
+      }
+
+      render2DReprojectionOverlay();
+      render2DRadarMap();
+      renderTrajectoryCanvases();
+      update3DScene();
+
+      // FPS calculation
       state.frameCount++;
       if (now - state.lastFpsUpdate >= 500) {
         state.fps = Math.round((state.frameCount * 1000) / (now - state.lastFpsUpdate));
@@ -1084,174 +879,163 @@
         state.lastFpsUpdate = now;
       }
 
-      const hasVideoFrame = videoElem && videoElem.readyState >= 2 && videoElem.videoWidth > 0 && videoElem.videoHeight > 0;
-      if (hasVideoFrame) {
-        if (!state.isCameraReady) {
-          state.isCameraReady = true;
-          state.isTracking = true;
-          cameraRecoveryBanner.classList.add('opacity-0', 'pointer-events-none');
-        }
+      requestAnimationFrame(mainLoop);
+    }
 
-        // Draw downsampled frame to offscreen processing canvas for SLAM feature extraction
-        procCtx.drawImage(videoElem, 0, 0, PROC_WIDTH, PROC_HEIGHT);
-        const frameData = procCtx.getImageData(0, 0, PROC_WIDTH, PROC_HEIGHT);
-        run6DoFVisualSLAM(frameData, dt);
-      }
-
-      render2DReprojectionAndAttitudeHUD(hasVideoFrame);
-      render2DRadarMap();
-      update3DScene();
-      renderTrajectoryCanvases();
+    function getLuminance(data, idx) {
+      return 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
     }
 
     /**
-     * Grid-NMS Shi-Tomasi Corner Detector
-     * Extracts sharp, high-contrast endpoints with sampled RGB colors
+     * Extract high-contrast Shi-Tomasi corner endpoints with Grid-NMS
      */
-    function extractShiTomasiCorners(rgbaData, maxCorners = 46) {
-      const gray = new Float32Array(PROC_WIDTH * PROC_HEIGHT);
-      for (let i = 0, p = 0; i < rgbaData.length; i += 4, p++) {
-        gray[p] = 0.299 * rgbaData[i] + 0.587 * rgbaData[i + 1] + 0.114 * rgbaData[i + 2];
-      }
+    function extractShiTomasiCorners(data, maxCorners = 48) {
+      const corners = [];
+      const rows = 5;
+      const cols = 6;
+      const cellW = Math.floor(PROC_WIDTH / cols);
+      const cellH = Math.floor(PROC_HEIGHT / rows);
 
-      const gridCols = 8;
-      const gridRows = 6;
-      const cellW = Math.floor((PROC_WIDTH - 20) / gridCols);
-      const cellH = Math.floor((PROC_HEIGHT - 20) / gridRows);
-      const candidates = [];
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          let bestScore = -Infinity;
+          let bestCorner = null;
 
-      for (let gy = 0; gy < gridRows; gy++) {
-        for (let gx = 0; gx < gridCols; gx++) {
-          let bestScore = 380.0; // High contrast threshold to avoid noisy flat surfaces
-          let bestPt = null;
+          const x0 = c * cellW + 8;
+          const x1 = (c + 1) * cellW - 8;
+          const y0 = r * cellH + 8;
+          const y1 = (r + 1) * cellH - 8;
 
-          const startX = 10 + gx * cellW;
-          const startY = 10 + gy * cellH;
-
-          for (let y = startY; y < startY + cellH; y += 2) {
-            for (let x = startX; x < startX + cellW; x += 2) {
-              let sxx = 0, syy = 0, sxy = 0;
-              for (let wy = -1; wy <= 1; wy++) {
-                const row = (y + wy) * PROC_WIDTH + x;
-                for (let wx = -1; wx <= 1; wx++) {
-                  const idx = row + wx;
-                  const ix = (gray[idx + 1] - gray[idx - 1]) * 0.5;
-                  const iy = (gray[idx + PROC_WIDTH] - gray[idx - PROC_WIDTH]) * 0.5;
-                  sxx += ix * ix;
-                  syy += iy * iy;
-                  sxy += ix * iy;
+          for (let y = y0; y < y1; y += 3) {
+            for (let x = x0; x < x1; x += 3) {
+              let Ixx = 0, Iyy = 0, Ixy = 0;
+              for (let dy = -1; dy <= 1; dy++) {
+                for (let dx = -1; dx <= 1; dx++) {
+                  const gx = (getLuminance(data, ((y + dy) * PROC_WIDTH + (x + dx + 1)) * 4) -
+                              getLuminance(data, ((y + dy) * PROC_WIDTH + (x + dx - 1)) * 4)) * 0.5;
+                  const gy = (getLuminance(data, ((y + dy + 1) * PROC_WIDTH + (x + dx)) * 4) -
+                              getLuminance(data, ((y + dy - 1) * PROC_WIDTH + (x + dx)) * 4)) * 0.5;
+                  Ixx += gx * gx;
+                  Iyy += gy * gy;
+                  Ixy += gx * gy;
                 }
               }
+              const trace = Ixx + Iyy;
+              const detTerm = Math.sqrt(Math.max(0, (Ixx - Iyy) * (Ixx - Iyy) + 4 * Ixy * Ixy));
+              const lambdaMin = (trace - detTerm) * 0.5;
 
-              // Minimum eigenvalue of 2x2 structure tensor (Shi-Tomasi score)
-              const trace = sxx + syy;
-              const det = sxx * syy - sxy * sxy;
-              const disc = Math.max(0, trace * trace * 0.25 - det);
-              const minEig = trace * 0.5 - Math.sqrt(disc);
-
-              if (minEig > bestScore) {
-                bestScore = minEig;
+              if (lambdaMin > 220 && lambdaMin > bestScore) {
                 const cIdx = (y * PROC_WIDTH + x) * 4;
-                bestPt = {
+                bestScore = lambdaMin;
+                bestCorner = {
                   u: x,
                   v: y,
-                  score: minEig,
-                  r: rgbaData[cIdx] / 255.0,
-                  g: rgbaData[cIdx + 1] / 255.0,
-                  b: rgbaData[cIdx + 2] / 255.0
+                  score: lambdaMin,
+                  r: data[cIdx] / 255.0,
+                  g: data[cIdx + 1] / 255.0,
+                  b: data[cIdx + 2] / 255.0
                 };
               }
             }
           }
-
-          if (bestPt) candidates.push(bestPt);
+          if (bestCorner) corners.push(bestCorner);
         }
       }
-
-      candidates.sort((a, b) => b.score - a.score);
-      return candidates.slice(0, maxCorners);
+      return corners.sort((a, b) => b.score - a.score).slice(0, maxCorners);
     }
 
-    function projectWorldToPixel(worldPt, camPos, worldToCamQuat) {
-      // Unified World-to-Camera Quaternion Transform: P_c = q_curr^-1 * (P_w - T_w)
-      const rel = new THREE.Vector3().subVectors(worldPt, camPos).applyQuaternion(worldToCamQuat);
+    /**
+     * Get Camera Rotation Matrix (World <- Camera) from Euler Angles (Y-up)
+     */
+    function getCameraRotationMatrix(pose) {
+      const euler = new THREE.Euler(
+        THREE.MathUtils.degToRad(pose.pitch),
+        THREE.MathUtils.degToRad(pose.yaw),
+        THREE.MathUtils.degToRad(pose.roll),
+        'YXZ'
+      );
+      return new THREE.Matrix4().makeRotationFromEuler(euler);
+    }
+
+    /**
+     * Project a 3D World Landmark into 2D Pinhole Pixel Coordinates (u, v)
+     */
+    function projectWorldToPixel(worldPt, camPos, invRotMat) {
+      const rel = new THREE.Vector3().subVectors(worldPt, camPos).applyMatrix4(invRotMat);
+      // Forward is -Z in Three.js camera space
       const depth = -rel.z;
       if (depth < 0.15) return null;
 
       const u = CX + FOCAL_PX * (rel.x / depth);
-      const v = CY - FOCAL_PX * (rel.y / depth);
+      const v = CY - FOCAL_PX * (rel.y / depth); // Image +v goes down, World +Y goes up
       return { u, v, depth };
     }
 
-    function pixelToWorldRay(u, v, camToWorldQuat) {
+    /**
+     * Back-project 2D Pixel (u, v) into Normalized World Ray Direction
+     */
+    function pixelToWorldRay(u, v, rotMat) {
       const rayCam = new THREE.Vector3(
         (u - CX) / FOCAL_PX,
         -(v - CY) / FOCAL_PX,
         -1.0
       ).normalize();
-      return rayCam.applyQuaternion(camToWorldQuat).normalize();
+      return rayCam.applyMatrix4(rotMat).normalize();
     }
 
+    /**
+     * Multi-View Stereo Ray-Ray Triangulation (Minimum 8cm baseline, >=4.0 deg parallax, <5cm residual)
+     */
     function triangulateStereoRays(orig0, ray0, orig1, ray1) {
       const w0 = new THREE.Vector3().subVectors(orig0, orig1);
       const b = ray0.dot(ray1);
       const d = ray0.dot(w0);
       const e = ray1.dot(w0);
 
-      const denom = 1.0 - b * b;
-      // Minimum parallax ~3.0 deg (sin^2(3 deg) ~ 0.00274)
-      if (denom < 0.0027) return null;
+      const denom = 1.0 - b * b; // sin^2(parallaxAngle)
+      // Enforce >= 4.0 degrees parallax angle (sin^2(4 deg) ≈ 0.00487)
+      if (denom < 0.0049) return null;
 
       const s = (b * e - d) / denom;
       const t = (e - b * d) / denom;
 
-      if (s < 0.25 || s > 7.5 || t < 0.25 || t > 7.5) return null;
+      // Enforce realistic depth bounds [0.3m, 6.0m]
+      if (s < 0.3 || s > 6.0 || t < 0.3 || t > 6.0) return null;
 
       const p0 = new THREE.Vector3().copy(orig0).addScaledVector(ray0, s);
       const p1 = new THREE.Vector3().copy(orig1).addScaledVector(ray1, t);
 
-      if (p0.distanceTo(p1) > 0.07) return null;
+      // Closest-approach residual must be < 5cm
+      if (p0.distanceTo(p1) > 0.05) return null;
 
       return new THREE.Vector3().addVectors(p0, p1).multiplyScalar(0.5);
     }
 
     /**
-     * Unified Map-to-Frame PnP 6DoF Gauss-Newton Solver
-     * Minimizes 2D reprojection residuals using P_c = q_curr^-1 * (P_w - T_w)
+     * Iterative Gauss-Newton 2D-3D PnP Translation Solver
+     * Minimizes sum of squared 2D reprojection residuals || (u_obs, v_obs) - proj(P_world, C) ||^2
+     * with respect to camera translation C = (x, y, z), holding gyro orientation fixed.
      */
-    function solvePnP6DoFGaussNewton(anchors, initialCamPos, baseQuat) {
+    function solvePnPTranslationGaussNewton(anchors, initialCamPos, rotMat, invRotMat) {
       if (anchors.length < 4) return null;
 
       const camPos = initialCamPos.clone();
-      let dYaw = 0;
-      let dPitch = 0;
-
       const maxIters = 6;
-      const huberDelta = 14.0;
+      const huberDelta = 12.0; // pixels outlier threshold
 
+      // Normal equations J^T W J * delta = J^T W r (3x3 symmetric linear system)
       for (let iter = 0; iter < maxIters; iter++) {
-        const deltaQ = new THREE.Quaternion().setFromEuler(
-          new THREE.Euler(THREE.MathUtils.degToRad(dPitch), THREE.MathUtils.degToRad(dYaw), 0, 'YXZ')
-        );
-        const curQuat = deltaQ.multiply(baseQuat).normalize();
-        const worldToCamQuat = curQuat.clone().invert();
-        const worldToCamMat = new THREE.Matrix4().makeRotationFromQuaternion(worldToCamQuat);
-        const e = worldToCamMat.elements;
-
-        let H00 = 1e-3, H01 = 0, H02 = 0;
+        let H00 = 1e-3, H01 = 0, H02 = 0; // Small Levenberg-Marquardt damping
         let H11 = 1e-3, H12 = 0;
         let H22 = 1e-3;
         let g0 = 0, g1 = 0, g2 = 0;
-
-        let yawNum = 0, yawDen = 1e-2;
-        let pitchNum = 0, pitchDen = 1e-2;
         let inlierCount = 0;
 
         for (let i = 0; i < anchors.length; i++) {
           const a = anchors[i];
-          const rel = new THREE.Vector3().subVectors(a.worldPos, camPos).applyQuaternion(worldToCamQuat);
+          const rel = new THREE.Vector3().subVectors(a.worldPos, camPos).applyMatrix4(invRotMat);
           const Z = -rel.z;
-          if (Z < 0.20 || Z > 9.0) continue;
+          if (Z < 0.25 || Z > 8.0) continue;
 
           const uPred = CX + FOCAL_PX * (rel.x / Z);
           const vPred = CY - FOCAL_PX * (rel.y / Z);
@@ -1260,31 +1044,34 @@
           const errV = a.v - vPred;
           const errNorm = Math.hypot(errU, errV);
 
+          // Huber robust weight to suppress optical flow outliers
           const weight = errNorm <= huberDelta ? 1.0 : (huberDelta / errNorm);
 
-          // Jacobian of (uPred, vPred) wrt camera-space point P_c = (xc, yc, zc) where Z = -zc:
-          // uPred = CX + f * xc / (-zc) => du/dxc = -f/Z, du/dzc = -f * xc / Z^2
-          // vPred = CY - f * yc / (-zc) => dv/dyc = +f/Z, dv/dzc = +f * yc / Z^2
-          // Since P_c = R_wc * (P_w - T_w), dP_c / dT_w = -R_wc (flipped signs!)
+          // Jacobian of (uPred, vPred) w.r.t. camera-space point (X_c, Y_c, Z_c)
+          // Note: Z = -Z_c => u = cx - f * X_c / Z_c, v = cy + f * Y_c / Z_c
+          // Since P_cam = R^T (P_world - C), d(P_cam)/dC = -R^T
+          // d(uPred)/d(P_cam) = [ f/Z, 0, f*rel.x / Z^2 ]
+          // d(vPred)/d(P_cam) = [ 0, -f/Z, -f*rel.y / Z^2 ]
           const invZ = 1.0 / Z;
           const invZ2 = invZ * invZ;
 
-          const ju_xc = FOCAL_PX * invZ;
+          const ju_xc = -FOCAL_PX * invZ;
           const ju_yc = 0;
-          const ju_zc = FOCAL_PX * rel.x * invZ2;
+          const ju_zc = -FOCAL_PX * rel.x * invZ2;
 
           const jv_xc = 0;
-          const jv_yc = -FOCAL_PX * invZ;
-          const jv_zc = -FOCAL_PX * rel.y * invZ2;
+          const jv_yc = FOCAL_PX * invZ;
+          const jv_zc = FOCAL_PX * rel.y * invZ2;
 
-          // Chain rule with R_wc (column-major in Three.js Matrix4)
-          const Ju0 = ju_xc * e[0] + ju_yc * e[1] + ju_zc * e[2];
-          const Ju1 = ju_xc * e[4] + ju_yc * e[5] + ju_zc * e[6];
-          const Ju2 = ju_xc * e[8] + ju_yc * e[9] + ju_zc * e[10];
+          // Transform Jacobian row from Camera frame to World frame via R (since d(P_cam)/dC = -R^T)
+          const e = rotMat.elements; // Column-major 4x4: R_col0=(e0,e1,e2), R_col1=(e4,e5,e6), R_col2=(e8,e9,e10)
+          const Ju0 = ju_xc * e[0] + ju_yc * e[4] + ju_zc * e[8];
+          const Ju1 = ju_xc * e[1] + ju_yc * e[5] + ju_zc * e[9];
+          const Ju2 = ju_xc * e[2] + ju_yc * e[6] + ju_zc * e[10];
 
-          const Jv0 = jv_xc * e[0] + jv_yc * e[1] + jv_zc * e[2];
-          const Jv1 = jv_xc * e[4] + jv_yc * e[5] + jv_zc * e[6];
-          const Jv2 = jv_xc * e[8] + jv_yc * e[9] + jv_zc * e[10];
+          const Jv0 = jv_xc * e[0] + jv_yc * e[4] + jv_zc * e[8];
+          const Jv1 = jv_xc * e[1] + jv_yc * e[5] + jv_zc * e[9];
+          const Jv2 = jv_xc * e[2] + jv_yc * e[6] + jv_zc * e[10];
 
           H00 += weight * (Ju0 * Ju0 + Jv0 * Jv0);
           H01 += weight * (Ju0 * Ju1 + Jv0 * Jv1);
@@ -1296,19 +1083,12 @@
           g0 += weight * (Ju0 * errU + Jv0 * errV);
           g1 += weight * (Ju1 * errU + Jv1 * errV);
           g2 += weight * (Ju2 * errU + Jv2 * errV);
-
-          const jYaw = -FOCAL_PX * (Math.PI / 180.0);
-          const jPitch = -FOCAL_PX * (Math.PI / 180.0);
-          yawNum += weight * jYaw * errU;
-          yawDen += weight * jYaw * jYaw;
-          pitchNum += weight * jPitch * errV;
-          pitchDen += weight * jPitch * jPitch;
-
           inlierCount++;
         }
 
         if (inlierCount < 4) return null;
 
+        // Solve 3x3 Symmetric Linear System H * delta = g via Cramer's Rule
         const det =
           H00 * (H11 * H22 - H12 * H12) -
           H01 * (H01 * H22 - H12 * H02) +
@@ -1333,30 +1113,23 @@
           g0 * (H01 * H12 - H11 * H02)
         );
 
+        // Clamp step size per iteration for numerical stability
         const stepNorm = Math.hypot(dx, dy, dz);
-        const maxStep = 0.30;
+        const maxStep = 0.25;
         const scale = stepNorm > maxStep ? (maxStep / stepNorm) : 1.0;
 
         camPos.x += dx * scale;
         camPos.y += dy * scale;
         camPos.z += dz * scale;
 
-        dYaw += Math.max(-0.35, Math.min(0.35, (yawNum / yawDen) * 0.2));
-        dPitch += Math.max(-0.35, Math.min(0.35, (pitchNum / pitchDen) * 0.2));
-
         if (stepNorm < 1e-4) break;
       }
 
-      const finalDeltaQ = new THREE.Quaternion().setFromEuler(
-        new THREE.Euler(THREE.MathUtils.degToRad(dPitch), THREE.MathUtils.degToRad(dYaw), 0, 'YXZ')
-      );
-      const finalQuat = finalDeltaQ.multiply(baseQuat).normalize();
-      const finalWorldToCamQuat = finalQuat.clone().invert();
-
+      // Compute final Reprojection RMSE
       let sumSqErr = 0;
       let validCount = 0;
       for (let a of anchors) {
-        const proj = projectWorldToPixel(a.worldPos, camPos, finalWorldToCamQuat);
+        const proj = projectWorldToPixel(a.worldPos, camPos, invRotMat);
         if (proj) {
           a.projU = proj.u;
           a.projV = proj.v;
@@ -1367,101 +1140,58 @@
       }
 
       const rmse = validCount > 0 ? Math.sqrt(sumSqErr / validCount) : 99.9;
-      return {
-        camPos,
-        yawDelta: dYaw,
-        pitchDelta: dPitch,
-        rmse,
-        validCount
-      };
+      return { camPos, rmse, validCount };
     }
 
     /**
-     * Main 6DoF Visual-Inertial SLAM Step
-     * Fixes translation estimation via Exact Quaternion Flow De-rotation + Unified PnP
+     * Main Map-to-Frame Visual SLAM Execution Step
      */
-    function run6DoFVisualSLAM(frameData, dt) {
+    function runPnPVisualSLAM(frameData, dt) {
       const data = frameData.data;
 
+      // Build current frame grayscale luminance array for fast optical flow patch correlation
       const curGray = new Uint8Array(PROC_WIDTH * PROC_HEIGHT);
       for (let i = 0, p = 0; i < data.length; i += 4, p++) {
         curGray[p] = (0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]) | 0;
       }
 
-      // Check if real hardware gyroscope events are arriving; otherwise use optical rotation fallback
-      const gyroFresh = state.sensor.isActive && (performance.now() - state.sensor.lastEventTime < 1500);
-      if (!gyroFresh) {
-        statGyroModeElem.textContent = "光学推定";
-      }
-
-      const qCurr = state.deviceWorldQuaternion.clone().normalize();
-      const qPrev = state.prevFrameQuaternion ? state.prevFrameQuaternion.clone().normalize() : qCurr.clone();
-
-      // Exact relative camera rotation from previous frame to current frame:
-      // A ray in prev camera coords v_prev transforms to current camera coords via: v_curr = (q_curr^-1 * q_prev) * v_prev
-      const dqPrevToCurr = qCurr.clone().invert().multiply(qPrev);
-
-      const worldToCamQuat = qCurr.clone().invert();
+      const rotMat = getCameraRotationMatrix(state.pose);
+      const invRotMat = rotMat.clone().invert();
       const currentCamOrigin = new THREE.Vector3(state.pose.x, state.pose.y, state.pose.z);
 
-      // 1. Track Existing 2D-3D Anchors via Block Matching + Exact Quaternion Rotational Prediction
+      // 1. Track Existing 2D-3D Anchors via Patch Correlation + Gyro-Predicted Search Center
       const survivingAnchors = [];
-      let flowSumU = 0, flowSumV = 0, flowCount = 0;
-      const residualTranslationalFlows = [];
-
       if (prevGrayFrame) {
         for (let anchor of state.activeAnchors) {
-          const origU = anchor.u;
-          const origV = anchor.v;
-
-          // Back-project normalized pixel coordinates (nx, ny) to 3D unit camera ray
-          const nx = (origU - CX) / (PROC_WIDTH * 0.5);
-          const ny = (origV - CY) / (PROC_HEIGHT * 0.5);
-          const rayPrevCam = new THREE.Vector3(
-            nx * TAN_HALF_FOV_X,
-            -ny * TAN_HALF_FOV_Y,
-            -1.0
-          ).normalize();
-
-          // Rotate ray by dqPrevToCurr to isolate exact pixel shift caused purely by device rotation/tilt
-          const rayRotCam = rayPrevCam.clone().applyQuaternion(dqPrevToCurr);
-          let rotPredU = origU;
-          let rotPredV = origV;
-          if (rayRotCam.z < -0.1) {
-            rotPredU = CX + FOCAL_PX * (rayRotCam.x / -rayRotCam.z);
-            rotPredV = CY - FOCAL_PX * (rayRotCam.y / -rayRotCam.z);
-          }
-
-          const rotFlowU = gyroFresh ? (rotPredU - origU) : 0;
-          const rotFlowV = gyroFresh ? (rotPredV - origV) : 0;
-
-          // Center block-matching search window at the rotation-predicted pixel location
-          const searchCenterU = Math.round(origU + rotFlowU);
-          const searchCenterV = Math.round(origV + rotFlowV);
+          // Predict pixel location using current gyro orientation & last camera position
+          const pred = projectWorldToPixel(anchor.worldPos, currentCamOrigin, invRotMat);
+          const searchCenterU = pred ? Math.round(0.6 * anchor.u + 0.4 * pred.u) : Math.round(anchor.u);
+          const searchCenterV = pred ? Math.round(0.6 * anchor.v + 0.4 * pred.v) : Math.round(anchor.v);
 
           if (searchCenterU < 8 || searchCenterU >= PROC_WIDTH - 8 || searchCenterV < 8 || searchCenterV >= PROC_HEIGHT - 8) {
             continue;
           }
 
-          const patchCenterU = Math.round(origU);
-          const patchCenterV = Math.round(origV);
-          if (patchCenterU < 6 || patchCenterU >= PROC_WIDTH - 6 || patchCenterV < 6 || patchCenterV >= PROC_HEIGHT - 6) continue;
+          const origU = Math.round(anchor.u);
+          const origV = Math.round(anchor.v);
+          if (origU < 6 || origU >= PROC_WIDTH - 6 || origV < 6 || origV >= PROC_HEIGHT - 6) continue;
 
+          // 5x5 Sum of Absolute Differences (SAD) block matching within +-6px search window
           let bestU = searchCenterU;
           let bestV = searchCenterV;
           let bestSAD = Infinity;
 
-          for (let sv = -8; sv <= 8; sv += 1) {
+          for (let sv = -6; sv <= 6; sv += 1) {
             const candV = searchCenterV + sv;
             if (candV < 5 || candV >= PROC_HEIGHT - 5) continue;
 
-            for (let su = -8; su <= 8; su += 1) {
+            for (let su = -6; su <= 6; su += 1) {
               const candU = searchCenterU + su;
               if (candU < 5 || candU >= PROC_WIDTH - 5) continue;
 
               let sad = 0;
               for (let py = -2; py <= 2; py++) {
-                const rowPrev = (patchCenterV + py) * PROC_WIDTH + patchCenterU;
+                const rowPrev = (origV + py) * PROC_WIDTH + origU;
                 const rowCur = (candV + py) * PROC_WIDTH + candU;
                 for (let px = -2; px <= 2; px++) {
                   sad += Math.abs(prevGrayFrame[rowPrev + px] - curGray[rowCur + px]);
@@ -1475,31 +1205,10 @@
             }
           }
 
-          if (bestSAD / 25.0 < 24.0) {
-            const obsDu = bestU - origU;
-            const obsDv = bestV - origV;
-            flowSumU += obsDu;
-            flowSumV += obsDv;
-            flowCount++;
-
-            // Residual translational optical flow after exact quaternion de-rotation
-            const transDu = obsDu - rotFlowU;
-            const transDv = obsDv - rotFlowV;
-
-            // Estimate depth from current 3D anchor position relative to camera
-            const relCam = new THREE.Vector3().subVectors(anchor.worldPos, currentCamOrigin).applyQuaternion(worldToCamQuat);
-            const depthEst = Math.max(0.4, Math.min(5.0, -relCam.z > 0.2 ? -relCam.z : 1.5));
-
-            residualTranslationalFlows.push({
-              du: transDu,
-              dv: transDv,
-              depth: depthEst,
-              normX: (bestU - CX) / FOCAL_PX,
-              normY: -(bestV - CY) / FOCAL_PX
-            });
-
-            anchor.prevU = origU;
-            anchor.prevV = origV;
+          // Reject poor patch matches (average intensity error > 22)
+          if (bestSAD / 25.0 < 22.0) {
+            anchor.prevU = anchor.u;
+            anchor.prevV = anchor.v;
             anchor.u = bestU;
             anchor.v = bestV;
             anchor.age++;
@@ -1519,131 +1228,43 @@
 
       state.activeAnchors = survivingAnchors;
 
-      // Optical-Flow Rotation Fallback (Desktop / Permission-Restricted Safari)
-      if (!gyroFresh && flowCount >= 3) {
-        const meanDu = flowSumU / flowCount;
-        const meanDv = flowSumV / flowCount;
-        const dYawOpt = THREE.MathUtils.radToDeg(Math.atan2(meanDu, FOCAL_PX));
-        const dPitchOpt = THREE.MathUtils.radToDeg(Math.atan2(meanDv, FOCAL_PX));
-
-        state.opticalFallback.yaw += dYawOpt * 0.85;
-        state.opticalFallback.pitch = Math.max(-80, Math.min(80, state.opticalFallback.pitch + dPitchOpt * 0.85));
-
-        const fallbackQuat = new THREE.Quaternion().setFromEuler(
-          new THREE.Euler(
-            THREE.MathUtils.degToRad(state.opticalFallback.pitch),
-            THREE.MathUtils.degToRad(state.opticalFallback.yaw),
-            0,
-            'YXZ'
-          )
-        );
-        state.deviceWorldQuaternion.copy(fallbackQuat);
-        syncEulerReadoutFromQuaternion(fallbackQuat);
-      }
-
-      // 2. Direct Translational Odometry Step from De-rotated Residual Flow
-      const priorCamPos = currentCamOrigin.clone();
-      if (residualTranslationalFlows.length >= 4) {
-        // Median consensus on lateral/vertical de-rotated optical flow + radial expansion/contraction for forward Z
-        const vxSamples = [];
-        const vySamples = [];
-        const vzSamples = [];
-
-        for (let f of residualTranslationalFlows) {
-          // Moving camera right (+X) causes features to shift left (-du): dX_cam = -(du / f) * Z
-          // Moving camera up (+Y) causes features to shift down (+dv): dY_cam = +(dv / f) * Z
-          const vxCam = -(f.du / FOCAL_PX) * f.depth;
-          const vyCam = (f.dv / FOCAL_PX) * f.depth;
-          vxSamples.push(vxCam);
-          vySamples.push(vyCam);
-
-          // Radial divergence from optical center estimates forward/backward translation (-Z is forward)
-          const r2 = f.normX * f.normX + f.normY * f.normY;
-          if (r2 > 0.025) {
-            const radialDot = f.normX * (f.du / FOCAL_PX) + f.normY * (-f.dv / FOCAL_PX);
-            // Expanding outward (radialDot > 0) means camera moved forward (-Z_cam)
-            const vzCam = -(radialDot / r2) * f.depth * 0.65;
-            vzSamples.push(vzCam);
-          }
-        }
-
-        vxSamples.sort((a, b) => a - b);
-        vySamples.sort((a, b) => a - b);
-        const midIdx = Math.floor(vxSamples.length * 0.5);
-        let medVx = vxSamples[midIdx];
-        let medVy = vySamples[midIdx];
-        let medVz = 0;
-
-        if (vzSamples.length >= 3) {
-          vzSamples.sort((a, b) => a - b);
-          medVz = vzSamples[Math.floor(vzSamples.length * 0.5)];
-        }
-
-        // Deadband filter against micro-jitter
-        if (Math.abs(medVx) < 0.002) medVx = 0;
-        if (Math.abs(medVy) < 0.002) medVy = 0;
-        if (Math.abs(medVz) < 0.003) medVz = 0;
-
-        // Rotate camera-space displacement into Three.js World Space using qCurr
-        const camStep = new THREE.Vector3(medVx, medVy, medVz);
-        if (camStep.length() > 0.18) camStep.setLength(0.18);
-        const worldStep = camStep.applyQuaternion(qCurr);
-
-        priorCamPos.add(worldStep);
-      }
-
-      // 3. Refine 6DoF Pose via Unified Map-to-Frame PnP Gauss-Newton
+      // 2. Solve Camera Translation via Map-to-Frame PnP Gauss-Newton
       if (state.activeAnchors.length >= 5) {
-        const pnpResult = solvePnP6DoFGaussNewton(state.activeAnchors, priorCamPos, qCurr);
-        if (pnpResult && pnpResult.rmse < 28.0) {
-          const jumpDist = pnpResult.camPos.distanceTo(priorCamPos);
+        const pnpResult = solvePnPTranslationGaussNewton(state.activeAnchors, currentCamOrigin, rotMat, invRotMat);
+        if (pnpResult && pnpResult.rmse < 24.0) {
+          // Smoothly apply solved translation with outlier jump guard
+          const jumpDist = pnpResult.camPos.distanceTo(currentCamOrigin);
           if (jumpDist < 0.45) {
-            // Blend de-rotated odometry prior with PnP map-locked refinement
-            state.pose.x = priorCamPos.x * 0.35 + pnpResult.camPos.x * 0.65;
-            state.pose.y = priorCamPos.y * 0.35 + pnpResult.camPos.y * 0.65;
-            state.pose.z = priorCamPos.z * 0.35 + pnpResult.camPos.z * 0.65;
-
-            if (gyroFresh) {
-              state.visualRotOffset.yaw = Math.max(-8, Math.min(8, state.visualRotOffset.yaw + pnpResult.yawDelta * 0.25));
-              state.visualRotOffset.pitch = Math.max(-6, Math.min(6, state.visualRotOffset.pitch + pnpResult.pitchDelta * 0.25));
-            }
-
+            state.pose.x = state.pose.x * 0.25 + pnpResult.camPos.x * 0.75;
+            state.pose.y = state.pose.y * 0.25 + pnpResult.camPos.y * 0.75;
+            state.pose.z = state.pose.z * 0.25 + pnpResult.camPos.z * 0.75;
             state.reprojectionRMSE = pnpResult.rmse;
             state.lockedAnchorCount = pnpResult.validCount;
-            setStatus(`6DoF 空間ロック中 (${pnpResult.validCount}点)`, 'bg-emerald-500');
-          } else {
-            state.pose.x = priorCamPos.x;
-            state.pose.y = priorCamPos.y;
-            state.pose.z = priorCamPos.z;
+            setStatus(`PnP 空間ロック中 (${pnpResult.validCount}点)`, 'bg-emerald-500');
           }
         } else {
-          state.pose.x = priorCamPos.x;
-          state.pose.y = priorCamPos.y;
-          state.pose.z = priorCamPos.z;
-          setStatus('空間アンカー再照合中...', 'bg-amber-500');
+          setStatus('PnP 再ロック探索中...', 'bg-amber-500');
         }
       } else {
-        state.pose.x = priorCamPos.x;
-        state.pose.y = priorCamPos.y;
-        state.pose.z = priorCamPos.z;
         setStatus('基準3D空間アンカー構築中...', 'bg-sky-500');
       }
 
       const updatedCamOrigin = new THREE.Vector3(state.pose.x, state.pose.y, state.pose.z);
 
-      // 4. Multi-View Stereo Ray-Ray Triangulation for Depth Refinement
+      // 3. Refine Anchor Depths via Multi-View Stereo Ray-Ray Triangulation
       for (let anchor of state.activeAnchors) {
         const baseline = anchor.birthOrigin.distanceTo(updatedCamOrigin);
-        if (!anchor.isTriangulated && baseline >= 0.06 && anchor.age >= 3) {
-          const curRay = pixelToWorldRay(anchor.u, anchor.v, qCurr);
+        if (!anchor.isTriangulated && baseline >= 0.08 && anchor.age >= 4) {
+          const curRay = pixelToWorldRay(anchor.u, anchor.v, rotMat);
           const parallaxAngle = anchor.birthRay.angleTo(curRay);
 
-          if (parallaxAngle >= (3.0 * Math.PI) / 180.0) {
+          if (parallaxAngle >= (4.0 * Math.PI) / 180.0) {
             const triPt = triangulateStereoRays(anchor.birthOrigin, anchor.birthRay, updatedCamOrigin, curRay);
             if (triPt) {
               anchor.worldPos.copy(triPt);
               anchor.isTriangulated = true;
 
+              // Commit to persistent RGB point cloud if not duplicated
               const isDup = state.triangulatedMapPoints.some(p => p.position.distanceTo(triPt) < 0.05);
               if (!isDup && state.triangulatedMapPoints.length < 4000) {
                 state.triangulatedMapPoints.push({
@@ -1656,7 +1277,7 @@
         }
       }
 
-      // 5. Sliding-Window Keyframe Expansion & Loop Re-localization
+      // 4. Dynamic Keyframe Map Expansion when Anchor Count Drops or Camera Moves Into New Scene
       const movedFromKF = Math.hypot(
         state.pose.x - state.lastKeyframePose.x,
         state.pose.y - state.lastKeyframePose.y,
@@ -1664,22 +1285,23 @@
       );
       const rotatedFromKF = Math.abs(state.pose.yaw - state.lastKeyframePose.yaw) + Math.abs(state.pose.pitch - state.lastKeyframePose.pitch);
 
-      if (state.activeAnchors.length < 24 || movedFromKF > 0.18 || rotatedFromKF > 15.0) {
-        const freshCorners = extractShiTomasiCorners(data, 46);
+      if (state.activeAnchors.length < 22 || movedFromKF > 0.25 || rotatedFromKF > 18.0) {
+        const freshCorners = extractShiTomasiCorners(data, 44);
         let added = 0;
 
         for (let c of freshCorners) {
-          const tooClose = state.activeAnchors.some(a => Math.hypot(a.u - c.u, a.v - c.v) < 14);
+          const tooClose = state.activeAnchors.some(a => Math.hypot(a.u - c.u, a.v - c.v) < 15);
           if (tooClose) continue;
 
-          const worldRay = pixelToWorldRay(c.u, c.v, qCurr);
+          const worldRay = pixelToWorldRay(c.u, c.v, rotMat);
 
+          // Check if a nearby triangulated 3D point already exists along this sightline (re-localization!)
           let matchedExisting3D = null;
-          let bestRayDist = 0.09;
+          let bestRayDist = 0.08;
           for (let mp of state.triangulatedMapPoints) {
             const toPt = new THREE.Vector3().subVectors(mp.position, updatedCamOrigin);
             const projLen = toPt.dot(worldRay);
-            if (projLen > 0.25 && projLen < 7.0) {
+            if (projLen > 0.3 && projLen < 6.0) {
               const perpDist = toPt.sub(worldRay.clone().multiplyScalar(projLen)).length();
               if (perpDist < bestRayDist) {
                 bestRayDist = perpDist;
@@ -1688,9 +1310,10 @@
             }
           }
 
+          // Initialize with existing 3D map point or local depth prior (1.6m) until stereo baseline >= 8cm
           const initialWorldPos = matchedExisting3D
             ? matchedExisting3D
-            : updatedCamOrigin.clone().addScaledVector(worldRay, 1.5);
+            : updatedCamOrigin.clone().addScaledVector(worldRay, 1.6);
 
           state.activeAnchors.push({
             id: state.nextAnchorId++,
@@ -1710,7 +1333,7 @@
             age: 0
           });
           added++;
-          if (state.activeAnchors.length >= 44) break;
+          if (state.activeAnchors.length >= 42) break;
         }
 
         if (added > 0) {
@@ -1725,7 +1348,7 @@
         }
       }
 
-      // 6. Record 6DoF Trajectory & Update Telemetry
+      // 5. Update Odometry Distance, Trajectory & HUD Readouts
       const stepDist = Math.hypot(
         state.pose.x - state.lastPose.x,
         state.pose.y - state.lastPose.y,
@@ -1742,20 +1365,19 @@
           state.pose.x - state.trajectory3D[state.trajectory3D.length - 1].x,
           state.pose.y - state.trajectory3D[state.trajectory3D.length - 1].y,
           state.pose.z - state.trajectory3D[state.trajectory3D.length - 1].z
-        ) > 0.02
+        ) > 0.025
       ) {
         state.trajectory3D.push({
           x: state.pose.x,
           y: state.pose.y,
           z: state.pose.z,
-          yaw: state.pose.yaw,
-          pitch: state.pose.pitch,
-          roll: state.pose.roll,
           timestamp: performance.now()
         });
       }
 
+      // Update UI Readouts
       statAnchorsElem.textContent = state.activeAnchors.length;
+      statRmseElem.textContent = state.reprojectionRMSE.toFixed(1);
       statTriangulatedElem.textContent = state.triangulatedMapPoints.length;
 
       statSummaryAnchors.textContent = `${state.activeAnchors.length} 点`;
@@ -1768,50 +1390,29 @@
       posZElem.innerHTML = `${state.pose.z.toFixed(2)} <span class="text-[8px] font-normal text-slate-400">m</span>`;
       statDistElem.textContent = `${state.totalDistance.toFixed(2)}m`;
 
-      state.prevFrameQuaternion = qCurr.clone();
       prevGrayFrame = curGray;
     }
 
     // ==========================================
-    // 4. 2D PNP REPROJECTION + AR ATTITUDE HUD
+    // 4. 2D PNP REPROJECTION OVERLAY & RADAR
     // ==========================================
-    function drawVideoCoverOntoCanvas(ctx, vid, targetW, targetH) {
-      const vw = vid.videoWidth;
-      const vh = vid.videoHeight;
-      if (!vw || !vh) return;
-
-      const scale = Math.max(targetW / vw, targetH / vh);
-      const drawW = vw * scale;
-      const drawH = vh * scale;
-      const offsetX = (targetW - drawW) * 0.5;
-      const offsetY = (targetH - drawH) * 0.5;
-
-      ctx.drawImage(vid, offsetX, offsetY, drawW, drawH);
-    }
-
-    function render2DReprojectionAndAttitudeHUD(hasVideoFrame = false) {
+    function render2DReprojectionOverlay() {
       const width = overlayCanvas.width;
       const height = overlayCanvas.height;
       overlayCtx.clearRect(0, 0, width, height);
-
-      // Rock-solid iOS Safari compositing: draw live camera frame onto 2D canvas
-      // so the camera image is guaranteed visible even if hardware <video> layer is suspended
-      if (hasVideoFrame && state.viewMode !== '3d') {
-        drawVideoCoverOntoCanvas(overlayCtx, videoElem, width, height);
-      }
 
       if (!state.showVectors) return;
 
       const scaleX = width / PROC_WIDTH;
       const scaleY = height / PROC_HEIGHT;
 
-      // A. Draw Feature Tracking & PnP Reprojection Vectors
       for (let a of state.activeAnchors) {
         const obsX = a.u * scaleX;
         const obsY = a.v * scaleY;
         const projX = a.projU * scaleX;
         const projY = a.projV * scaleY;
 
+        // 1. Optical Flow History Trail
         if (a.trail.length > 1) {
           overlayCtx.beginPath();
           for (let i = 0; i < a.trail.length; i++) {
@@ -1820,11 +1421,12 @@
             if (i === 0) overlayCtx.moveTo(tx, ty);
             else overlayCtx.lineTo(tx, ty);
           }
-          overlayCtx.strokeStyle = 'rgba(56, 189, 248, 0.5)';
+          overlayCtx.strokeStyle = 'rgba(56, 189, 248, 0.55)';
           overlayCtx.lineWidth = 1.5;
           overlayCtx.stroke();
         }
 
+        // 2. Reprojection Residual Error Line (Observed 2D -> Reprojected 3D Anchor)
         overlayCtx.beginPath();
         overlayCtx.moveTo(obsX, obsY);
         overlayCtx.lineTo(projX, projY);
@@ -1832,9 +1434,10 @@
         overlayCtx.lineWidth = 1.5;
         overlayCtx.stroke();
 
+        // 3. Reprojected 3D Anchor Crosshair (Magenta / Yellow)
         overlayCtx.strokeStyle = a.isTriangulated ? '#e879f9' : '#facc15';
         overlayCtx.lineWidth = 1.5;
-        const chSize = 4.5;
+        const chSize = 5;
         overlayCtx.beginPath();
         overlayCtx.moveTo(projX - chSize, projY);
         overlayCtx.lineTo(projX + chSize, projY);
@@ -1842,6 +1445,7 @@
         overlayCtx.lineTo(projX, projY + chSize);
         overlayCtx.stroke();
 
+        // 4. Tracked Keypoint Dot (Emerald if 3D-triangulated, Cyan if local anchor)
         overlayCtx.beginPath();
         overlayCtx.arc(obsX, obsY, a.isTriangulated ? 4.5 : 3.5, 0, Math.PI * 2);
         overlayCtx.fillStyle = a.isTriangulated ? '#10b981' : '#22d3ee';
@@ -1850,106 +1454,6 @@
         overlayCtx.lineWidth = 1;
         overlayCtx.stroke();
       }
-
-      // B. Draw AR Spatial Attitude HUD (Yaw Heading Tape + Artificial Horizon Pitch/Roll Ladder)
-      const cx = width * 0.5;
-      const cy = height * 0.46;
-
-      // 1. Top Relative Spatial Heading Compass Tape
-      const tapeY = Math.min(182, height * 0.24);
-      const tapeW = Math.min(240, width * 0.62);
-      const pxPerDeg = 2.2;
-
-      overlayCtx.save();
-      overlayCtx.beginPath();
-      overlayCtx.rect(cx - tapeW * 0.5, tapeY - 16, tapeW, 30);
-      overlayCtx.clip();
-
-      overlayCtx.fillStyle = 'rgba(2, 6, 23, 0.65)';
-      overlayCtx.fillRect(cx - tapeW * 0.5, tapeY - 16, tapeW, 30);
-
-      overlayCtx.font = 'bold 9px monospace';
-      overlayCtx.textAlign = 'center';
-
-      for (let deg = -180; deg <= 180; deg += 15) {
-        let diff = deg - state.pose.yaw;
-        if (diff > 180) diff -= 360;
-        if (diff < -180) diff += 360;
-        const tx = cx - diff * pxPerDeg;
-        if (tx >= cx - tapeW * 0.5 - 15 && tx <= cx + tapeW * 0.5 + 15) {
-          const isMajor = deg % 45 === 0;
-          overlayCtx.strokeStyle = deg === 0 ? '#f43f5e' : 'rgba(56, 189, 248, 0.7)';
-          overlayCtx.lineWidth = deg === 0 ? 2 : 1;
-          overlayCtx.beginPath();
-          overlayCtx.moveTo(tx, tapeY + 6);
-          overlayCtx.lineTo(tx, tapeY + (isMajor ? -2 : 2));
-          overlayCtx.stroke();
-
-          if (isMajor) {
-            let lbl = `${deg}°`;
-            if (deg === 0) lbl = "正面0°";
-            else if (deg === 90) lbl = "左90°";
-            else if (deg === -90) lbl = "右90°";
-            else if (Math.abs(deg) === 180) lbl = "後方";
-            overlayCtx.fillStyle = deg === 0 ? '#fda4af' : '#bae6fd';
-            overlayCtx.fillText(lbl, tx, tapeY - 5);
-          }
-        }
-      }
-      overlayCtx.restore();
-
-      overlayCtx.fillStyle = '#38bdf8';
-      overlayCtx.beginPath();
-      overlayCtx.moveTo(cx, tapeY + 8);
-      overlayCtx.lineTo(cx - 5, tapeY + 14);
-      overlayCtx.lineTo(cx + 5, tapeY + 14);
-      overlayCtx.closePath();
-      overlayCtx.fill();
-
-      // 2. Center Roll & Pitch Artificial Horizon Ladder
-      overlayCtx.save();
-      overlayCtx.translate(cx, cy);
-      overlayCtx.rotate(THREE.MathUtils.degToRad(-state.pose.roll));
-
-      const pitchPxPerDeg = 2.6;
-      const pitchOffset = state.pose.pitch * pitchPxPerDeg;
-
-      overlayCtx.strokeStyle = 'rgba(16, 185, 129, 0.75)';
-      overlayCtx.lineWidth = 1.5;
-      overlayCtx.beginPath();
-      overlayCtx.moveTo(-75, pitchOffset);
-      overlayCtx.lineTo(-24, pitchOffset);
-      overlayCtx.moveTo(24, pitchOffset);
-      overlayCtx.lineTo(75, pitchOffset);
-      overlayCtx.stroke();
-
-      overlayCtx.font = 'bold 8px monospace';
-      overlayCtx.fillStyle = 'rgba(16, 185, 129, 0.85)';
-      [-30, -15, 15, 30].forEach(pDeg => {
-        const py = pitchOffset - pDeg * pitchPxPerDeg;
-        if (Math.abs(py) < 90) {
-          overlayCtx.beginPath();
-          overlayCtx.moveTo(-36, py);
-          overlayCtx.lineTo(-18, py);
-          overlayCtx.moveTo(18, py);
-          overlayCtx.lineTo(36, py);
-          overlayCtx.stroke();
-          overlayCtx.fillText(`${pDeg > 0 ? '+' : ''}${pDeg}°`, 42, py + 3);
-        }
-      });
-
-      overlayCtx.restore();
-
-      // Fixed Aircraft-style Center Optical Reticle
-      overlayCtx.strokeStyle = 'rgba(56, 189, 248, 0.85)';
-      overlayCtx.lineWidth = 2;
-      overlayCtx.beginPath();
-      overlayCtx.moveTo(cx - 18, cy);
-      overlayCtx.lineTo(cx - 6, cy);
-      overlayCtx.lineTo(cx, cy + 5);
-      overlayCtx.lineTo(cx + 6, cy);
-      overlayCtx.lineTo(cx + 18, cy);
-      overlayCtx.stroke();
     }
 
     function render2DRadarMap() {
@@ -1969,6 +1473,7 @@
       radarCtx.moveTo(0, cy); radarCtx.lineTo(rw, cy);
       radarCtx.stroke();
 
+      // Plot 3D landmarks on XZ plane
       radarCtx.fillStyle = 'rgba(16, 185, 129, 0.8)';
       const scale = 14;
       state.triangulatedMapPoints.slice(-140).forEach(pt => {
@@ -1977,6 +1482,7 @@
         radarCtx.fillRect(rx - 1, ry - 1, 2, 2);
       });
 
+      // Plot path
       if (state.trajectory3D.length > 1) {
         radarCtx.beginPath();
         radarCtx.strokeStyle = '#38bdf8';
@@ -1990,28 +1496,19 @@
         radarCtx.stroke();
       }
 
+      // Self Heading Arrow
       const selfX = cx + state.pose.x * scale;
       const selfY = cy + state.pose.z * scale;
       const yawRad = THREE.MathUtils.degToRad(state.pose.yaw);
-      const halfFovRad = THREE.MathUtils.degToRad(H_FOV_DEG * 0.5);
 
       radarCtx.save();
       radarCtx.translate(selfX, selfY);
       radarCtx.rotate(-yawRad);
-
-      radarCtx.fillStyle = 'rgba(56, 189, 248, 0.22)';
-      radarCtx.beginPath();
-      radarCtx.moveTo(0, 0);
-      radarCtx.arc(0, 0, 26, -Math.PI * 0.5 - halfFovRad, -Math.PI * 0.5 + halfFovRad);
-      radarCtx.closePath();
-      radarCtx.fill();
-
       radarCtx.fillStyle = '#f43f5e';
       radarCtx.beginPath();
-      radarCtx.moveTo(0, -7);
-      radarCtx.lineTo(5, 5);
-      radarCtx.lineTo(0, 2.5);
-      radarCtx.lineTo(-5, 5);
+      radarCtx.moveTo(0, -6);
+      radarCtx.lineTo(4.5, 5);
+      radarCtx.lineTo(-4.5, 5);
       radarCtx.closePath();
       radarCtx.fill();
       radarCtx.restore();
@@ -2034,7 +1531,7 @@
         }
       } else {
         iconMeasureBox.classList.remove('bg-amber-500/30', 'border', 'border-amber-400');
-        labelMeasureBtn.textContent = "計測";
+        labelMeasureBtn.textContent = "3D計測";
         measureActivePanel.classList.add('hidden');
         measureInstructionsBadge.classList.add('hidden');
         if (snapCursorMesh) snapCursorMesh.visible = false;
@@ -2052,8 +1549,9 @@
       raycaster.setFromCamera(mouseRaycast, camera3D);
 
       let closestPt = null;
-      let minRayDist = 0.35;
+      let minRayDist = 0.35; // 35cm tap snap tolerance
 
+      // Check triangulated 3D map points first, then active anchors
       for (let mp of state.triangulatedMapPoints) {
         const d = raycaster.ray.distanceToPoint(mp.position);
         if (d < minRayDist) {
@@ -2180,7 +1678,7 @@
 
     function updateMeasurementListUI() {
       if (state.measureRecords.length === 0) {
-        measureListContainer.innerHTML = '<div class="text-[10px] text-slate-400 text-center py-3">計測履歴はありません。「計測」モードで点群を2点タップしてください。</div>';
+        measureListContainer.innerHTML = '<div class="text-[10px] text-slate-400 text-center py-3">計測履歴はありません。「3D計測」モードで点群を2点タップしてください。</div>';
         return;
       }
       measureListContainer.innerHTML = state.measureRecords.map((r, i) => `
@@ -2192,10 +1690,8 @@
     }
 
     // ==========================================
-    // 6. THREE.JS 3D SPATIAL RENDERER & TILT GIZMO
+    // 6. THREE.JS 3D SPATIAL RENDERER
     // ==========================================
-    const GROUND_Y = -0.8;
-
     function initThreeJS() {
       const width = window.innerWidth;
       const height = window.innerHeight;
@@ -2204,7 +1700,7 @@
       scene.background = new THREE.Color(0x050811);
 
       camera3D = new THREE.PerspectiveCamera(60, width / height, 0.05, 100);
-      camera3D.position.set(0.8, 1.2, 2.2);
+      camera3D.position.set(0, 1.8, 3.6);
 
       raycaster = new THREE.Raycaster();
       mouseRaycast = new THREE.Vector2();
@@ -2215,25 +1711,14 @@
       threeCanvasContainer.appendChild(renderer3D.domElement);
 
       scene.add(new THREE.AmbientLight(0xffffff, 0.95));
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.75);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
       dirLight.position.set(4, 10, 6);
       scene.add(dirLight);
 
       // Ground Grid (+Y is Up, Ground Floor at Y = -0.8m)
       const grid = new THREE.GridHelper(20, 20, 0x38bdf8, 0x1e293b);
-      grid.position.y = GROUND_Y;
+      grid.position.y = -0.8;
       scene.add(grid);
-
-      // Spatial Origin Forward Axis Arrow (-Z = 0° Reference Heading)
-      const originForwardArrow = new THREE.ArrowHelper(
-        new THREE.Vector3(0, 0, -1),
-        new THREE.Vector3(0, GROUND_Y + 0.01, 0),
-        1.1,
-        0x38bdf8,
-        0.18,
-        0.12
-      );
-      scene.add(originForwardArrow);
 
       trajectoryMeshGroup = new THREE.Group();
       scene.add(trajectoryMeshGroup);
@@ -2253,172 +1738,51 @@
 
       // Origin Start Marker
       startMarkerMesh = new THREE.Mesh(
-        new THREE.SphereGeometry(0.075, 16, 16),
+        new THREE.SphereGeometry(0.09, 16, 16),
         new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7 })
       );
       scene.add(startMarkerMesh);
 
-      // Current Position Core Sphere
+      // Current Position Marker
       currentMarkerMesh = new THREE.Mesh(
-        new THREE.SphereGeometry(0.055, 16, 16),
+        new THREE.SphereGeometry(0.065, 16, 16),
         new THREE.MeshStandardMaterial({ color: 0xf43f5e, emissive: 0xe11d48 })
       );
       scene.add(currentMarkerMesh);
 
-      // ========================================================
-      // HIGH-VISIBILITY 3D IPHONE DEVICE AVATAR + TILT RING GIZMO
-      // ========================================================
+      // Smartphone 3D Pose Avatar + Frustum + Heading Arrow
       cameraAvatarGroup = new THREE.Group();
 
-      // 1. Detailed iPhone Metallic Chassis (Portrait)
       const phoneBody = new THREE.Mesh(
-        new THREE.BoxGeometry(0.24, 0.48, 0.028),
-        new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.8, roughness: 0.22 })
+        new THREE.BoxGeometry(0.20, 0.40, 0.025),
+        new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.7, roughness: 0.25 })
       );
       cameraAvatarGroup.add(phoneBody);
 
-      // Glowing Edge Frame for clear silhouette
-      const phoneEdges = new THREE.LineSegments(
-        new THREE.EdgesGeometry(new THREE.BoxGeometry(0.244, 0.484, 0.030)),
-        new THREE.LineBasicMaterial({ color: 0x38bdf8 })
-      );
-      cameraAvatarGroup.add(phoneEdges);
-
-      // 2. Front OLED Screen (+Z face facing user)
       const phoneScreen = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.215, 0.44),
-        new THREE.MeshBasicMaterial({ color: 0x0284c7, side: THREE.DoubleSide })
+        new THREE.PlaneGeometry(0.18, 0.36),
+        new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide })
       );
-      phoneScreen.position.z = 0.015;
+      phoneScreen.position.z = 0.014;
       cameraAvatarGroup.add(phoneScreen);
 
-      // Screen Top Notch / Dynamic Island indicator so top (+Y) is unmistakable
-      const dynamicIsland = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.065, 0.018),
-        new THREE.MeshBasicMaterial({ color: 0x020617 })
-      );
-      dynamicIsland.position.set(0, 0.19, 0.016);
-      cameraAvatarGroup.add(dynamicIsland);
-
-      // 3. Rear Pro Triple-Camera Bump (-Z face pointing toward scanned scene)
-      const cameraBump = new THREE.Mesh(
-        new THREE.BoxGeometry(0.095, 0.095, 0.014),
-        new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.9, roughness: 0.1 })
-      );
-      cameraBump.position.set(-0.055, 0.16, -0.018);
-      cameraAvatarGroup.add(cameraBump);
-
-      // Glowing Cyan Main Camera Lens
-      const mainLens = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.018, 0.018, 0.01, 16),
-        new THREE.MeshBasicMaterial({ color: 0x22d3ee })
-      );
-      mainLens.rotation.x = Math.PI / 2;
-      mainLens.position.set(-0.055, 0.16, -0.024);
-      cameraAvatarGroup.add(mainLens);
-
-      // 4. Attached Device Tilt Attitude Ring (Gold ring rotating WITH the iPhone's Pitch & Roll)
-      const deviceAttitudeRingGeo = new THREE.RingGeometry(0.32, 0.345, 48);
-      deviceAttitudeRingGeo.rotateX(-Math.PI / 2);
-      const deviceAttitudeRing = new THREE.Mesh(
-        deviceAttitudeRingGeo,
-        new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide, transparent: true, opacity: 0.85 })
-      );
-      cameraAvatarGroup.add(deviceAttitudeRing);
-
-      // 5. Translucent Camera Field-Of-View Frustum Pyramid pointing along -Z
-      const frustumGeo = new THREE.ConeGeometry(0.52, 0.72, 4);
+      // Camera Field-Of-View Frustum Cone pointing along -Z
+      const frustumGeo = new THREE.ConeGeometry(0.42, 0.55, 4);
       frustumGeo.rotateX(-Math.PI / 2);
-      frustumGeo.rotateZ(Math.PI / 4);
-      const frustumFill = new THREE.Mesh(
+      const frustumMesh = new THREE.Mesh(
         frustumGeo,
-        new THREE.MeshBasicMaterial({
-          color: 0x38bdf8,
-          transparent: true,
-          opacity: 0.15,
-          side: THREE.DoubleSide,
-          depthWrite: false
-        })
+        new THREE.MeshBasicMaterial({ color: 0x38bdf8, wireframe: true, transparent: true, opacity: 0.65 })
       );
-      frustumFill.position.z = -0.36;
-      cameraAvatarGroup.add(frustumFill);
+      frustumMesh.position.z = -0.28;
+      cameraAvatarGroup.add(frustumMesh);
 
-      const frustumWire = new THREE.Mesh(
-        frustumGeo,
-        new THREE.MeshBasicMaterial({ color: 0x38bdf8, wireframe: true, transparent: true, opacity: 0.7 })
-      );
-      frustumWire.position.z = -0.36;
-      cameraAvatarGroup.add(frustumWire);
-
-      // 6. Forward Optical Sightline Laser Beam (-Z, 2.0m length) + Emerald Heading Arrow
-      const laserGeo = new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(0, 0, -0.02),
-        new THREE.Vector3(0, 0, -2.0)
-      ]);
-      sightlineLaserMesh = new THREE.Line(
-        laserGeo,
-        new THREE.LineBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: 0.9 })
-      );
-      cameraAvatarGroup.add(sightlineLaserMesh);
-
-      const forwardArrow = new THREE.ArrowHelper(
-        new THREE.Vector3(0, 0, -1),
-        new THREE.Vector3(0, 0, 0),
-        0.85,
-        0x10b981,
-        0.18,
-        0.11
-      );
-      cameraAvatarGroup.add(forwardArrow);
-
-      // 7. Local RGB Orientation Axes (Red=+X Right, Green=+Y Top of Phone, Blue=+Z Screen Side)
-      cameraAvatarGroup.add(new THREE.AxesHelper(0.42));
-      scene.add(cameraAvatarGroup);
-
-      // Stationary Horizontal World Level Reference Ring around device center
-      // Allows immediate visual comparison between level horizon (white) and tilted device ring (gold)
-      const levelRingGeo = new THREE.RingGeometry(0.36, 0.375, 48);
-      levelRingGeo.rotateX(-Math.PI / 2);
-      worldLevelRingMesh = new THREE.Mesh(
-        levelRingGeo,
-        new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.35 })
-      );
-      scene.add(worldLevelRingMesh);
-
-      // Floor-Projected Heading Compass Ring & Arrow directly beneath the device on GROUND_Y
-      floorCompassGroup = new THREE.Group();
-      const ringGeo = new THREE.RingGeometry(0.28, 0.33, 32);
-      ringGeo.rotateX(-Math.PI / 2);
-      const ringMesh = new THREE.Mesh(
-        ringGeo,
-        new THREE.MeshBasicMaterial({ color: 0xf43f5e, side: THREE.DoubleSide, transparent: true, opacity: 0.8 })
-      );
-      floorCompassGroup.add(ringMesh);
       // Forward Heading Arrow (-Z)
       const arrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 0, 0), 0.58, 0x10b981, 0.14, 0.09);
       cameraAvatarGroup.add(arrow);
 
-      // Gold Device-Tilting Attitude Ring (rotates directly with the iPhone's pitch & roll)
-      const deviceAttitudeRingGeo = new THREE.RingGeometry(0.28, 0.305, 48);
-      deviceAttitudeRingGeo.rotateX(-Math.PI / 2);
-      const deviceAttitudeRing = new THREE.Mesh(
-        deviceAttitudeRingGeo,
-        new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide, transparent: true, opacity: 0.9 })
-      );
-      cameraAvatarGroup.add(deviceAttitudeRing);
-
       // Local RGB Axes
       cameraAvatarGroup.add(new THREE.AxesHelper(0.32));
       scene.add(cameraAvatarGroup);
-
-      // White Stationary Level Horizon Reference Ring around the 3D smartphone avatar
-      const worldLevelRingGeo = new THREE.RingGeometry(0.32, 0.335, 48);
-      worldLevelRingGeo.rotateX(-Math.PI / 2);
-      worldLevelRingMesh = new THREE.Mesh(
-        worldLevelRingGeo,
-        new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.45 })
-      );
-      scene.add(worldLevelRingMesh);
 
       // Real-Color RGB 3D Point Cloud
       pointCloudGeometry = new THREE.BufferGeometry();
@@ -2437,11 +1801,14 @@
       if (!scene || !renderer3D) return;
 
       cameraAvatarGroup.position.set(state.pose.x, state.pose.y, state.pose.z);
-      cameraAvatarGroup.quaternion.copy(state.deviceWorldQuaternion);
+      const euler = new THREE.Euler(
+        THREE.MathUtils.degToRad(state.pose.pitch),
+        THREE.MathUtils.degToRad(state.pose.yaw),
+        THREE.MathUtils.degToRad(state.pose.roll),
+        'YXZ'
+      );
+      cameraAvatarGroup.quaternion.setFromEuler(euler);
       currentMarkerMesh.position.set(state.pose.x, state.pose.y, state.pose.z);
-      if (worldLevelRingMesh) {
-        worldLevelRingMesh.position.set(state.pose.x, state.pose.y, state.pose.z);
-      }
 
       // Update Volumetric Ribbon Trajectory & Floor Drop-Lines
       if (state.trajectory3D.length > 1) {
@@ -2459,7 +1826,7 @@
 
         const curve = new THREE.CatmullRomCurve3(pts);
         const segments = Math.min(pts.length * 3, 280);
-        const tubeGeo = new THREE.TubeGeometry(curve, segments, 0.024, 8, false);
+        const tubeGeo = new THREE.TubeGeometry(curve, segments, 0.028, 8, false);
 
         const vCount = tubeGeo.attributes.position.count;
         const tubeColors = new Float32Array(vCount * 3);
@@ -2482,16 +1849,17 @@
         );
         trajectoryMeshGroup.add(tubeMesh);
 
+        // Drop lines to ground plane (Y = -0.8)
         const step = Math.max(1, Math.floor(pts.length / 24));
         for (let i = 0; i < pts.length; i += step) {
           const p = pts[i];
           const pGeo = new THREE.BufferGeometry().setFromPoints([
             new THREE.Vector3(p.x, p.y, p.z),
-            new THREE.Vector3(p.x, GROUND_Y, p.z)
+            new THREE.Vector3(p.x, -0.8, p.z)
           ]);
           const line = new THREE.Line(
             pGeo,
-            new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.32 })
+            new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.35 })
           );
           pillarsGroup.add(line);
         }
@@ -2530,10 +1898,10 @@
         pointCloudGeometry.attributes.color.needsUpdate = true;
       }
 
-      // Orbit Camera Target (Follow device center or fixed at spatial origin)
-      const tx = state.followCamera3D ? state.pose.x : 0;
-      const ty = state.followCamera3D ? state.pose.y : 0;
-      const tz = state.followCamera3D ? state.pose.z : 0;
+      // Orbit Camera Follow
+      const tx = state.pose.x;
+      const ty = state.pose.y;
+      const tz = state.pose.z;
 
       const camX = tx + orbitDistance * Math.cos(orbitElevation) * Math.sin(orbitAzimuth);
       const camY = ty + orbitDistance * Math.sin(orbitElevation);
@@ -2546,7 +1914,7 @@
     }
 
     // ==========================================
-    // 7. DRAWER, EXPORT & ORIGIN / HEADING RESET
+    // 7. DRAWER, EXPORT & ORIGIN RESET
     // ==========================================
     function toggleTrajectoryWindow() {
       const hidden = trajectoryWindow.classList.contains('pointer-events-none');
@@ -2589,7 +1957,7 @@
       const h = trajCanvas2D.height;
       const cx = w * 0.5;
       const cy = h * 0.5;
-      const scale = 32;
+      const scale = 32; // 32px = 1.0m
 
       trajCtx2D.clearRect(0, 0, w, h);
 
@@ -2602,11 +1970,10 @@
         trajCtx2D.beginPath(); trajCtx2D.moveTo(0, y); trajCtx2D.lineTo(w, y); trajCtx2D.stroke();
       }
 
+      // Origin circle
       trajCtx2D.strokeStyle = '#38bdf8';
       trajCtx2D.beginPath();
       trajCtx2D.arc(cx, cy, 4, 0, Math.PI * 2);
-      trajCtx2D.moveTo(cx, cy);
-      trajCtx2D.lineTo(cx, cy - 18);
       trajCtx2D.stroke();
 
       if (state.trajectory3D.length > 1) {
@@ -2620,38 +1987,20 @@
           else trajCtx2D.lineTo(px, py);
         });
         trajCtx2D.stroke();
+
+        const last = state.trajectory3D[state.trajectory3D.length - 1];
+        trajCtx2D.fillStyle = '#f43f5e';
+        trajCtx2D.beginPath();
+        trajCtx2D.arc(cx + last.x * scale, cy + last.z * scale, 5, 0, Math.PI * 2);
+        trajCtx2D.fill();
       }
-
-      const curPx = cx + state.pose.x * scale;
-      const curPy = cy + state.pose.z * scale;
-      const yawRad = THREE.MathUtils.degToRad(state.pose.yaw);
-
-      trajCtx2D.save();
-      trajCtx2D.translate(curPx, curPy);
-      trajCtx2D.rotate(-yawRad);
-
-      trajCtx2D.fillStyle = 'rgba(56, 189, 248, 0.25)';
-      trajCtx2D.beginPath();
-      trajCtx2D.moveTo(0, 0);
-      trajCtx2D.arc(0, 0, 26, -Math.PI * 0.5 - 0.5, -Math.PI * 0.5 + 0.5);
-      trajCtx2D.closePath();
-      trajCtx2D.fill();
-
-      trajCtx2D.fillStyle = '#f43f5e';
-      trajCtx2D.beginPath();
-      trajCtx2D.moveTo(0, -8);
-      trajCtx2D.lineTo(5, 5);
-      trajCtx2D.lineTo(-5, 5);
-      trajCtx2D.closePath();
-      trajCtx2D.fill();
-      trajCtx2D.restore();
     }
 
     function exportTrajectoryJSON() {
       const payload = {
         appVersion: APP_BUILD_VERSION,
         exportedAt: new Date().toISOString(),
-        trajectory6DoF: state.trajectory3D,
+        trajectory: state.trajectory3D,
         measurements: state.measureRecords.map(m => ({
           distanceMeter: m.distanceMeter,
           label: m.label,
@@ -2670,20 +2019,20 @@
       const uri = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(payload, null, 2));
       const link = document.createElement('a');
       link.href = uri;
-      link.download = `6dof_slam_${APP_BUILD_VERSION}.json`;
+      link.download = `pnp_slam_${APP_BUILD_VERSION}.json`;
       document.body.appendChild(link);
       link.click();
       link.remove();
     }
 
     function exportTrajectoryCSV() {
-      let csv = "data:text/csv;charset=utf-8,Timestamp,X_m,Y_m,Z_m,Yaw_deg,Pitch_deg,Roll_deg\n";
+      let csv = "data:text/csv;charset=utf-8,Timestamp,X_m,Y_m,Z_m\n";
       state.trajectory3D.forEach(p => {
-        csv += `${p.timestamp.toFixed(1)},${p.x.toFixed(4)},${p.y.toFixed(4)},${p.z.toFixed(4)},${(p.yaw || 0).toFixed(2)},${(p.pitch || 0).toFixed(2)},${(p.roll || 0).toFixed(2)}\n`;
+        csv += `${p.timestamp.toFixed(1)},${p.x.toFixed(4)},${p.y.toFixed(4)},${p.z.toFixed(4)}\n`;
       });
       const link = document.createElement('a');
       link.href = encodeURI(csv);
-      link.download = `6dof_trajectory_${APP_BUILD_VERSION}.csv`;
+      link.download = `pnp_trajectory_${APP_BUILD_VERSION}.csv`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -2693,8 +2042,6 @@
       state.pose = { x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 0 };
       state.lastPose = { x: 0, y: 0, z: 0 };
       state.sensor.initAlpha = null;
-      state.sensor.zeroYawQuatInv = null;
-      state.deviceWorldQuaternion.identity();
       state.totalDistance = 0;
       state.reprojectionRMSE = 0;
       state.lockedAnchorCount = 0;
@@ -2720,18 +2067,15 @@
       pointCloudGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(0), 3));
 
       statAnchorsElem.textContent = '0';
-      statHeadingDirElem.textContent = '基準正面 (0°)';
+      statRmseElem.textContent = '0.0';
       statTriangulatedElem.textContent = '0';
       statDistElem.textContent = '0.00m';
       posXElem.innerHTML = `0.00 <span class="text-[8px] font-normal text-slate-400">m</span>`;
       posYElem.innerHTML = `0.00 <span class="text-[8px] font-normal text-slate-400">m</span>`;
       posZElem.innerHTML = `0.00 <span class="text-[8px] font-normal text-slate-400">m</span>`;
-      yawElem.textContent = '0.0°';
-      pitchElem.textContent = '0.0°';
-      rollElem.textContent = '0.0°';
 
       renderTrajectoryCanvases();
-      setStatus('原点・基準方位をゼロリセットしました', 'bg-sky-500');
+      setStatus('原点・空間アンカーをリセットしました', 'bg-sky-500');
     }
   </script>
 </body>

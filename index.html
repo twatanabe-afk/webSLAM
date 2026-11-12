@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>iPhone Visual SLAM - 3D Measurement & Point Cloud</title>
+  <title>iPhone Visual SLAM - PnP 3D Measurement (v2026.11.12-1422)</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Three.js for 3D Spatial Rendering & Raycasting -->
@@ -41,18 +41,19 @@
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
       border: 1px solid rgba(255, 255, 255, 0.18);
+      transition: transform 0.15s ease, background-color 0.15s ease;
     }
     .glass-button:active {
       transform: scale(0.95);
-      background: rgba(255, 255, 255, 0.22);
+      background: rgba(255, 255, 255, 0.24);
     }
 
     .pip-container {
-      width: 120px;
-      height: 165px;
+      width: 116px;
+      height: 160px;
       border-radius: 18px;
       overflow: hidden;
-      box-shadow: 0 12px 35px rgba(0, 0, 0, 0.85), 0 0 0 2px rgba(56, 189, 248, 0.7);
+      box-shadow: 0 12px 35px rgba(0, 0, 0, 0.85), 0 0 0 2px rgba(56, 189, 248, 0.75);
       transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     }
     .pip-container:active {
@@ -60,63 +61,45 @@
     }
 
     @keyframes pulse-ring {
-      0% { transform: scale(0.96); opacity: 0.8; }
-      50% { transform: scale(1.08); opacity: 1; }
-      100% { transform: scale(0.96); opacity: 0.8; }
+      0% { transform: scale(0.95); opacity: 0.75; }
+      50% { transform: scale(1.1); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.75; }
     }
     .status-pulse {
-      animation: pulse-ring 2s infinite ease-in-out;
+      animation: pulse-ring 1.8s infinite ease-in-out;
     }
   </style>
 </head>
 <body class="relative w-screen h-screen overflow-hidden flex flex-col bg-slate-950 text-slate-100 select-none">
 
-  <!-- TOP HEADER WITH PERMANENT BUILD VERSION BADGE -->
-  <header class="absolute top-0 left-0 right-0 z-40 pt-10 pb-3 px-4 glass-panel border-b-0 rounded-b-2xl flex items-center justify-between shadow-2xl">
-    <div class="flex items-center space-x-2.5">
-      <div id="status-indicator" class="w-3 h-3 rounded-full bg-amber-500 status-pulse"></div>
+  <!-- TOP HEADER WITH PERSISTENT BUILD VERSION BADGE -->
+  <header class="absolute top-0 left-0 right-0 z-40 pt-10 pb-2.5 px-3.5 glass-panel border-b-0 rounded-b-2xl flex items-center justify-between shadow-2xl">
+    <div class="flex items-center space-x-2">
+      <div id="status-indicator" class="w-3 h-3 rounded-full bg-amber-500 status-pulse shrink-0"></div>
       <div>
-        <div class="flex items-center gap-1.5">
-          <h1 class="text-[10px] font-bold tracking-widest uppercase text-sky-400">Visual SLAM 3D Measure</h1>
-          <!-- Build Version Watermark -->
-          <span id="app-build-ver" class="px-1.5 py-0.2 rounded text-[8px] font-mono font-bold bg-cyan-950/90 text-cyan-300 border border-cyan-400/50 shadow">
-            v2026.10.27-1650
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <h1 class="text-[10px] font-bold tracking-wider uppercase text-sky-400">PnP Visual SLAM</h1>
+          <!-- Permanent Build Version Badge -->
+          <span id="app-build-ver" class="px-1.5 py-0.5 rounded text-[8px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-400/50 shadow-sm">
+            v2026.11.12-1422
           </span>
         </div>
-        <div id="status-text" class="text-xs font-bold text-slate-100 flex items-center gap-1.5 mt-0.5">
-          カメラ初期化中...
+        <div id="status-text" class="text-[11px] font-bold text-slate-100 mt-0.5 truncate max-w-[165px]">
+          カメラ待機中...
         </div>
       </div>
     </div>
     
     <div class="flex items-center space-x-1.5">
-      <!-- Camera Permission Retry -->
-      <button id="btn-cam-retry" class="px-2.5 h-8 rounded-full glass-button flex items-center space-x-1 text-xs font-semibold text-amber-300">
-        <i class="fa-solid fa-video text-xs"></i>
-        <span>起動</span>
-      </button>
-
-      <!-- 3D Measure Mode Toggle -->
-      <button id="btn-measure-mode" class="px-2.5 h-8 rounded-full glass-button flex items-center space-x-1 text-xs font-semibold text-amber-400 border border-amber-400/40">
-        <i class="fa-solid fa-ruler-combined text-xs"></i>
-        <span id="label-measure-btn">計測OFF</span>
-      </button>
-
-      <!-- Trajectory & Point Stats Window -->
-      <button id="btn-toggle-traj-win" class="px-2.5 h-8 rounded-full glass-button flex items-center space-x-1 text-xs font-semibold text-purple-300">
-        <i class="fa-solid fa-route text-xs"></i>
-        <span>統計</span>
-      </button>
-
-      <!-- Info Modal -->
-      <button id="btn-info" class="w-8 h-8 rounded-full glass-button flex items-center justify-center text-sky-400">
-        <i class="fa-solid fa-circle-info text-sm"></i>
-      </button>
-      
-      <!-- Main View Toggle (Camera / 3D Map) -->
-      <button id="btn-toggle-view" class="px-2.5 h-8 rounded-full glass-button flex items-center space-x-1 text-xs font-semibold text-emerald-400">
-        <i id="view-icon" class="fa-solid fa-cube text-xs"></i>
+      <!-- View Switcher (Camera / 3D / Split) -->
+      <button id="btn-toggle-view" class="px-2.5 h-8 rounded-full glass-button flex items-center space-x-1 text-[11px] font-bold text-emerald-300 border border-emerald-400/40">
+        <i id="view-icon" class="fa-solid fa-layer-group text-xs"></i>
         <span id="view-mode-label">カメラ</span>
+      </button>
+
+      <!-- Info & Guide Modal -->
+      <button id="btn-info" class="w-8 h-8 rounded-full glass-button flex items-center justify-center text-sky-300">
+        <i class="fa-solid fa-circle-info text-sm"></i>
       </button>
     </div>
   </header>
@@ -124,181 +107,172 @@
   <!-- MAIN VIEWPORTS CONTAINER -->
   <main id="viewport-root" class="relative w-full h-full flex-1 overflow-hidden">
     
-    <!-- 1. CAMERA VIEWPORT WITH 2D CANVAS OVERLAY -->
+    <!-- 1. LIVE CAMERA VIEWPORT + 2D PNP REPROJECTION OVERLAY -->
     <div id="camera-viewport" class="absolute inset-0 w-full h-full z-10 transition-all duration-300">
       <video id="camera-feed" playsinline webkit-playsinline autoplay muted class="absolute inset-0 w-full h-full object-cover"></video>
       <canvas id="tracking-canvas" class="absolute inset-0 w-full h-full z-20 pointer-events-none"></canvas>
 
-      <!-- Live Feature Overlay HUD -->
-      <div class="absolute top-24 left-4 z-30 pointer-events-none flex flex-col space-y-1.5">
-        <span class="px-2.5 py-1 rounded-full text-[10px] font-mono bg-black/75 backdrop-blur-md border border-cyan-400/40 text-cyan-300 w-max flex items-center gap-1.5 shadow-lg">
-          <i class="fa-solid fa-crosshairs text-cyan-400 text-[9px]"></i> 追跡特徴点: <span id="stat-features" class="font-bold text-white">0</span>
-        </span>
-        <span class="px-2.5 py-1 rounded-full text-[10px] font-mono bg-black/75 backdrop-blur-md border border-emerald-400/40 text-emerald-300 w-max flex items-center gap-1.5 shadow-lg">
-          <i class="fa-solid fa-cube text-emerald-400 text-[9px]"></i> 3D確定点群: <span id="stat-triangulated" class="font-bold text-white">0</span>
-        </span>
-        <span class="px-2.5 py-1 rounded-full text-[10px] font-mono bg-black/75 backdrop-blur-md border border-sky-400/30 text-sky-300 w-max flex items-center gap-1.5 shadow-lg">
-          <i class="fa-solid fa-gauge-high text-[9px]"></i> FPS: <span id="stat-fps" class="font-bold text-white">0</span>
-        </span>
+      <!-- Live PnP Telemetry Pills (Top Left) -->
+      <div class="absolute top-24 left-3.5 z-30 pointer-events-none flex flex-col space-y-1.5">
+        <div class="px-2.5 py-1 rounded-full text-[10px] font-mono bg-black/80 backdrop-blur-md border border-fuchsia-400/50 text-fuchsia-200 w-max flex items-center gap-1.5 shadow-lg">
+          <i class="fa-solid fa-anchor text-fuchsia-400 text-[9px]"></i>
+          <span>3Dアンカーロック: <strong id="stat-anchors" class="text-white">0</strong> 点</span>
+        </div>
+        <div class="px-2.5 py-1 rounded-full text-[10px] font-mono bg-black/80 backdrop-blur-md border border-cyan-400/40 text-cyan-200 w-max flex items-center gap-1.5 shadow-lg">
+          <i class="fa-solid fa-crosshairs text-cyan-400 text-[9px]"></i>
+          <span>再投影RMSE: <strong id="stat-rmse" class="text-white">0.0</strong> px</span>
+        </div>
+        <div class="px-2.5 py-1 rounded-full text-[10px] font-mono bg-black/80 backdrop-blur-md border border-emerald-400/40 text-emerald-200 w-max flex items-center gap-1.5 shadow-lg">
+          <i class="fa-solid fa-cubes text-emerald-400 text-[9px]"></i>
+          <span>空間点群: <strong id="stat-triangulated" class="text-white">0</strong> | <strong id="stat-fps" class="text-sky-300">0</strong> FPS</span>
+        </div>
       </div>
 
-      <!-- Center Crosshair Target -->
+      <!-- Center Optical Axis Crosshair -->
       <div class="absolute inset-0 pointer-events-none flex items-center justify-center z-15">
-        <div class="w-14 h-14 rounded-full border border-sky-400/30 border-dashed flex items-center justify-center">
+        <div class="w-16 h-16 rounded-full border border-sky-400/35 border-dashed flex items-center justify-center">
           <div class="w-1.5 h-1.5 rounded-full bg-sky-400"></div>
         </div>
       </div>
     </div>
 
-    <!-- 2. THREE.JS 3D RECONSTRUCTION & MEASUREMENT VIEWPORT -->
+    <!-- 2. THREE.JS 3D SPATIAL RECONSTRUCTION & MEASUREMENT VIEWPORT -->
     <div id="three-viewport" class="absolute inset-0 w-full h-full z-0 opacity-0 pointer-events-none transition-all duration-300">
       <div id="three-canvas-container" class="w-full h-full"></div>
 
-      <!-- 3D Map Top Guide & Measurement Banner -->
-      <div class="absolute top-24 left-4 z-20 pointer-events-none flex flex-col space-y-1.5">
-        <span class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-950/85 border border-indigo-400/40 text-indigo-200 backdrop-blur-md flex items-center gap-1.5 shadow-lg">
-          <i class="fa-solid fa-cubes text-emerald-400"></i> 3D空間点群マップ (+Y: 上空, 厳密三角測量)
+      <!-- 3D Map Header Badge -->
+      <div class="absolute top-24 left-3.5 z-20 pointer-events-none flex flex-col space-y-1.5">
+        <span class="px-3 py-1.5 rounded-xl text-[11px] font-bold bg-indigo-950/90 border border-indigo-400/40 text-indigo-200 backdrop-blur-md flex items-center gap-1.5 shadow-lg">
+          <i class="fa-solid fa-cube text-emerald-400"></i> 3D空間点群 & 自己位置マップ (+Y上空)
         </span>
-        <span id="measure-instructions-badge" class="hidden text-[10px] text-amber-300 bg-amber-950/85 px-2.5 py-1 rounded-lg backdrop-blur-md border border-amber-400/50 shadow-md">
-          <i class="fa-solid fa-hand-pointer text-amber-400"></i> 点群を2箇所タップして距離計測
+        <span id="measure-instructions-badge" class="hidden text-[10px] font-semibold text-amber-200 bg-amber-950/90 px-2.5 py-1 rounded-lg backdrop-blur-md border border-amber-400/50 shadow-md">
+          <i class="fa-solid fa-hand-pointer text-amber-400"></i> 3D点群を2点タップして距離計測
         </span>
-        <span class="text-[9px] text-slate-300 bg-black/70 px-2 py-0.5 rounded-md backdrop-blur-sm border border-white/10">
-          <i class="fa-solid fa-arrows-up-down-left-right text-sky-400"></i> スワイプで視点回転 / 2本指でズーム
+        <span class="text-[9px] text-slate-300 bg-black/75 px-2 py-0.5 rounded-md backdrop-blur-sm border border-white/10 w-max">
+          <i class="fa-solid fa-arrows-up-down-left-right text-sky-400"></i> ドラッグで回転 / 2本指ズーム
         </span>
       </div>
 
-      <!-- Measure Action Floating Box (In 3D View) -->
-      <div id="measure-active-panel" class="hidden absolute top-24 right-4 z-30 glass-panel p-2.5 rounded-2xl border border-amber-500/40 shadow-2xl flex flex-col space-y-2 pointer-events-auto w-44">
+      <!-- Floating 3D Measure Tool HUD (Active when Measuring) -->
+      <div id="measure-active-panel" class="hidden absolute top-24 right-3.5 z-30 glass-panel p-3 rounded-2xl border border-amber-500/50 shadow-2xl flex flex-col space-y-2 pointer-events-auto w-44">
         <div class="text-[10px] font-bold text-amber-300 flex items-center justify-between border-b border-white/10 pb-1">
-          <span><i class="fa-solid fa-ruler"></i> 3D距離計測</span>
-          <span id="measure-step-text" class="text-[9px] text-slate-400 font-mono">始点待ち</span>
+          <span><i class="fa-solid fa-ruler"></i> 2点間3D計測</span>
+          <span id="measure-step-text" class="text-[9px] text-slate-300 font-mono">始点待ち</span>
         </div>
-        <div id="measure-dist-result" class="text-sm font-extrabold text-amber-400 font-mono text-center py-1 bg-black/40 rounded-lg">
+        <div id="measure-dist-result" class="text-base font-extrabold text-amber-400 font-mono text-center py-1.5 bg-black/50 rounded-xl border border-amber-400/20">
           -- cm
         </div>
-        <div class="flex space-x-1">
-          <button id="btn-measure-cam-pt" class="flex-1 py-1 px-1 rounded-lg text-[9px] font-bold bg-sky-500/20 text-sky-300 border border-sky-400/30">
+        <div class="flex space-x-1.5">
+          <button id="btn-measure-cam-pt" class="flex-1 py-1.5 px-1 rounded-lg text-[9px] font-bold bg-sky-500/25 hover:bg-sky-500/40 text-sky-200 border border-sky-400/40">
             現在地打点
           </button>
-          <button id="btn-measure-clear" class="py-1 px-2 rounded-lg text-[9px] font-bold bg-rose-500/20 text-rose-300 border border-rose-400/30">
-            クリア
+          <button id="btn-measure-clear" class="py-1.5 px-2 rounded-lg text-[9px] font-bold bg-rose-500/25 hover:bg-rose-500/40 text-rose-200 border border-rose-400/40">
+            取消
           </button>
         </div>
       </div>
     </div>
 
-    <!-- PICTURE-IN-PICTURE (PiP) PREVIEW -->
-    <div id="pip-window" class="pip-container absolute top-24 right-4 z-30 cursor-pointer glass-panel flex flex-col items-center justify-center">
-      <div class="relative w-full h-full overflow-hidden flex items-center justify-center">
-        <span class="absolute top-1.5 left-1.5 z-40 px-1.5 py-0.5 rounded text-[8px] font-bold bg-black/85 text-sky-300 border border-sky-400/40">
-          切替
-        </span>
-      </div>
+    <!-- PICTURE-IN-PICTURE (PiP) THUMBNAIL WINDOW -->
+    <div id="pip-window" class="pip-container absolute top-24 right-3.5 z-30 cursor-pointer glass-panel flex flex-col items-center justify-center">
+      <div id="pip-content" class="relative w-full h-full overflow-hidden flex items-center justify-center"></div>
+      <span class="absolute bottom-1.5 left-1.5 z-40 px-1.5 py-0.5 rounded text-[8px] font-bold bg-black/85 text-sky-300 border border-sky-400/40 pointer-events-none">
+        タップで切替
+      </span>
     </div>
 
-    <!-- 2D TOP-DOWN RADAR -->
-    <div class="absolute bottom-52 right-4 z-30 w-24 h-24 rounded-2xl glass-panel border border-sky-400/30 overflow-hidden shadow-2xl flex flex-col items-center justify-center">
+    <!-- 2D TOP-DOWN MINI RADAR (XZ PLANE) -->
+    <div class="absolute bottom-52 right-3.5 z-30 w-24 h-24 rounded-2xl glass-panel border border-sky-400/30 overflow-hidden shadow-2xl flex flex-col items-center justify-center pointer-events-none">
       <canvas id="radar-canvas" class="w-full h-full"></canvas>
-      <span class="absolute bottom-1 text-[8px] font-mono text-sky-300 bg-black/70 px-1 rounded">RADAR (XZ)</span>
+      <span class="absolute bottom-1 text-[8px] font-mono text-sky-300 bg-black/75 px-1.5 rounded">XZ RADAR</span>
     </div>
 
   </main>
 
-  <!-- FLOATING TRAJECTORY & MEASUREMENT ANALYZER WINDOW -->
-  <section id="trajectory-window" class="fixed inset-x-3 top-20 z-40 max-h-[75vh] glass-panel rounded-3xl border border-purple-500/40 shadow-2xl flex flex-col overflow-hidden transition-all duration-300 transform scale-95 opacity-0 pointer-events-none">
+  <!-- STATS, TRAJECTORY & MEASUREMENT LOG DRAWER -->
+  <section id="trajectory-window" class="fixed inset-x-3 top-20 z-40 max-h-[74vh] glass-panel rounded-3xl border border-purple-500/40 shadow-2xl flex flex-col overflow-hidden transition-all duration-300 transform scale-95 opacity-0 pointer-events-none">
     
     <div class="p-3.5 border-b border-white/10 flex items-center justify-between bg-purple-950/40">
       <div class="flex items-center space-x-2">
-        <div class="w-3 h-3 rounded-full bg-purple-400 animate-pulse"></div>
+        <div class="w-2.5 h-2.5 rounded-full bg-purple-400 animate-pulse"></div>
         <h2 class="text-xs font-bold text-purple-200 uppercase tracking-wider flex items-center gap-1.5">
-          <i class="fa-solid fa-chart-area text-purple-400"></i> 計測 & 軌跡アナライザー
+          <i class="fa-solid fa-chart-network text-purple-400"></i> 統計 & エクスポート
         </h2>
       </div>
-      <div class="flex items-center space-x-1.5">
-        <button id="btn-traj-pin" class="w-7 h-7 rounded-lg glass-button flex items-center justify-center text-slate-300 text-xs">
-          <i class="fa-solid fa-up-right-and-down-left-from-center"></i>
-        </button>
-        <button id="btn-traj-close" class="w-7 h-7 rounded-lg glass-button flex items-center justify-center text-rose-300 text-xs">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
-      </div>
+      <button id="btn-traj-close" class="w-7 h-7 rounded-lg glass-button flex items-center justify-center text-rose-300 text-xs">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
     </div>
 
     <div class="flex border-b border-white/10 bg-black/40 text-[11px] font-semibold text-slate-300">
       <button id="tab-traj-2d" class="flex-1 py-2 px-3 border-b-2 border-purple-400 text-purple-300 bg-purple-500/10 transition flex items-center justify-center gap-1">
-        <i class="fa-solid fa-draw-polygon"></i> 歩行平面 (XZ)
+        <i class="fa-solid fa-draw-polygon"></i> 平面軌跡
       </button>
       <button id="tab-traj-measures" class="flex-1 py-2 px-3 border-b-2 border-transparent hover:text-white transition flex items-center justify-center gap-1">
-        <i class="fa-solid fa-ruler"></i> 計測ログ
+        <i class="fa-solid fa-ruler"></i> 計測履歴
       </button>
       <button id="tab-traj-stats" class="flex-1 py-2 px-3 border-b-2 border-transparent hover:text-white transition flex items-center justify-center gap-1">
-        <i class="fa-solid fa-sliders"></i> 設定 & 統計
+        <i class="fa-solid fa-sliders"></i> 点群・精度
       </button>
     </div>
 
     <div class="p-3 overflow-y-auto space-y-3 text-xs flex-1">
-      <!-- Tab 1: 2D Footprint -->
+      <!-- Tab 1: 2D XZ Footprint -->
       <div id="view-traj-2d" class="space-y-2">
-        <div class="relative w-full h-48 bg-slate-950 rounded-2xl border border-purple-400/30 overflow-hidden flex items-center justify-center">
+        <div class="relative w-full h-44 bg-slate-950 rounded-2xl border border-purple-400/30 overflow-hidden flex items-center justify-center">
           <canvas id="traj-canvas-2d" class="w-full h-full"></canvas>
-          <div class="absolute top-2 left-2 text-[9px] font-mono bg-black/75 px-2 py-0.5 rounded text-purple-300 border border-purple-400/20">
-            XZ Footprint (1m/grid)
+          <div class="absolute top-2 left-2 text-[9px] font-mono bg-black/80 px-2 py-0.5 rounded text-purple-300 border border-purple-400/20">
+            XZ平面図 (1マス = 1.0m)
           </div>
         </div>
       </div>
 
-      <!-- Tab 2: Measurement Logs -->
+      <!-- Tab 2: 3D Measurement Logs -->
       <div id="view-traj-measures" class="hidden space-y-2">
         <div class="glass-card p-2.5 rounded-2xl border border-amber-500/30">
           <div class="text-[11px] font-bold text-amber-300 flex items-center justify-between pb-1 border-b border-white/10 mb-2">
-            <span>記録された3D距離一覧</span>
-            <button id="btn-clear-all-measures" class="text-[9px] text-rose-300 hover:text-rose-100 font-normal">全てクリア</button>
+            <span>記録済み3D計測データ</span>
+            <button id="btn-clear-all-measures" class="text-[9px] text-rose-300 hover:text-rose-100 font-normal">全て削除</button>
           </div>
           <div id="measure-list-container" class="space-y-1.5 max-h-40 overflow-y-auto">
-            <div class="text-[10px] text-slate-400 text-center py-3">計測データはありません。「計測」モードで2点をタップしてください。</div>
+            <div class="text-[10px] text-slate-400 text-center py-3">計測履歴はありません。「計測」モードで3D点群を2点タップしてください。</div>
           </div>
         </div>
       </div>
 
-      <!-- Tab 3: Stats & Point Cloud Settings -->
-      <div id="view-traj-stats" class="hidden space-y-3">
+      <!-- Tab 3: PnP Solver & Point Cloud Stats -->
+      <div id="view-traj-stats" class="hidden space-y-2.5">
         <div class="grid grid-cols-2 gap-2 text-[10px] font-mono">
           <div class="glass-card p-2 rounded-xl">
-            <span class="text-slate-400">移動幅 X (横):</span>
-            <div id="stat-env-x" class="text-sky-300 font-bold text-xs">0.00 m</div>
+            <span class="text-slate-400">PnP有効アンカー:</span>
+            <div id="stat-summary-anchors" class="text-fuchsia-300 font-bold text-xs">0 点</div>
           </div>
           <div class="glass-card p-2 rounded-xl">
-            <span class="text-slate-400">移動幅 Z (前後):</span>
-            <div id="stat-env-z" class="text-purple-300 font-bold text-xs">0.00 m</div>
+            <span class="text-slate-400">キーフレーム数:</span>
+            <div id="stat-summary-kf" class="text-sky-300 font-bold text-xs">0 KF</div>
           </div>
           <div class="glass-card p-2 rounded-xl">
-            <span class="text-slate-400">垂直高低差 Y:</span>
-            <div id="stat-env-y" class="text-emerald-300 font-bold text-xs">0.00 m</div>
+            <span class="text-slate-400">累計3D点群数:</span>
+            <div id="stat-summary-pts" class="text-emerald-300 font-bold text-xs">0 点</div>
           </div>
           <div class="glass-card p-2 rounded-xl">
-            <span class="text-slate-400">確定3D点群:</span>
-            <div id="stat-summary-pts" class="text-cyan-300 font-bold text-xs">0 点</div>
+            <span class="text-slate-400">再投影誤差RMSE:</span>
+            <div id="stat-summary-rmse" class="text-amber-300 font-bold text-xs">0.00 px</div>
           </div>
         </div>
 
         <div class="space-y-2 glass-card p-2.5 rounded-2xl border border-white/10">
           <div class="flex justify-between text-[10px]">
-            <span class="text-slate-300">軌跡履歴長:</span>
-            <span id="label-trail-length" class="font-bold text-purple-300">250 点</span>
-          </div>
-          <input id="slider-trail-length" type="range" min="30" max="600" value="250" class="w-full accent-purple-400 bg-slate-800 rounded-lg h-1.5 cursor-pointer">
-
-          <div class="flex justify-between text-[10px] pt-1">
-            <span class="text-slate-300">点群サイズ:</span>
+            <span class="text-slate-300">3D点群表示サイズ:</span>
             <span id="label-point-size" class="font-bold text-emerald-300">0.08</span>
           </div>
-          <input id="slider-point-size" type="range" min="0.02" max="0.25" step="0.01" value="0.08" class="w-full accent-emerald-400 bg-slate-800 rounded-lg h-1.5 cursor-pointer">
+          <input id="slider-point-size" type="range" min="0.03" max="0.25" step="0.01" value="0.08" class="w-full accent-emerald-400 bg-slate-800 rounded-lg h-1.5 cursor-pointer">
         </div>
       </div>
 
-      <div class="flex items-center justify-between pt-1 border-t border-white/10 gap-2">
+      <div class="flex items-center justify-between pt-1.5 border-t border-white/10 gap-2">
         <button id="btn-clear-traj" class="px-3 py-1.5 rounded-xl text-[10px] font-bold bg-rose-500/20 hover:bg-rose-500/40 border border-rose-400/30 text-rose-300 transition flex items-center gap-1">
-          <i class="fa-solid fa-trash-can"></i> 点群・軌跡消去
+          <i class="fa-solid fa-rotate-left"></i> 空間リセット
         </button>
         <div class="flex items-center space-x-1.5">
           <button id="btn-export-json" class="px-3 py-1.5 rounded-xl text-[10px] font-bold bg-purple-600/30 hover:bg-purple-600/50 border border-purple-400/40 text-purple-200 transition flex items-center gap-1">
@@ -312,179 +286,198 @@
     </div>
   </section>
 
-  <!-- DASHBOARD: SELF-POSITION & POSE TELEMETRY -->
+  <!-- LIVE SELF-POSITION TELEMETRY CARDS -->
   <section class="absolute bottom-20 left-3 right-3 z-30 pointer-events-none">
-    <div class="glass-panel p-3 rounded-2xl pointer-events-auto shadow-2xl border border-sky-500/30 space-y-2">
+    <div class="glass-panel p-2.5 rounded-2xl pointer-events-auto shadow-2xl border border-sky-500/30 space-y-2">
       
       <div class="flex items-center justify-between pb-1 border-b border-white/10">
-        <div class="flex items-center space-x-2">
-          <div class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping"></div>
-          <span class="text-xs font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-1">
-            <i class="fa-solid fa-location-dot text-rose-400"></i> 自己位置 & 空間座標
+        <div class="flex items-center space-x-1.5">
+          <div class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></div>
+          <span class="text-[11px] font-bold uppercase tracking-wider text-cyan-300">
+            自己位置 (基準空間からの変位)
           </span>
         </div>
-        <div class="flex items-center space-x-2">
-          <span class="text-[10px] text-slate-400 font-mono">累積: <span id="stat-dist" class="text-sky-300 font-bold">0.00m</span> | 速度: <span id="stat-speed" class="text-emerald-300 font-bold">0.00m/s</span></span>
-          <button id="btn-reset-origin" class="px-2 py-0.5 rounded-lg text-[9px] font-bold bg-rose-500/30 hover:bg-rose-500/50 border border-rose-400/40 text-rose-200 transition">
-            原点リセット
-          </button>
-        </div>
+        <span class="text-[10px] text-slate-300 font-mono">
+          移動距離: <strong id="stat-dist" class="text-sky-300">0.00m</strong>
+        </span>
       </div>
 
-      <!-- X, Y, Z Coordinates (Right-Handed: X=Right, Y=Up, Z=Back, -Z=Forward) -->
+      <!-- X, Y, Z Coordinates (Meters) -->
       <div class="grid grid-cols-3 gap-1.5 text-center font-mono">
         <div class="glass-card p-1.5 rounded-xl border border-sky-400/20">
-          <div class="text-[8px] font-bold uppercase tracking-wider text-slate-400">X (左右 +右)</div>
-          <div id="pos-x" class="text-sm font-extrabold text-sky-300">0.00 <span class="text-[8px] text-slate-400 font-normal">m</span></div>
+          <div class="text-[8px] font-bold uppercase text-slate-400">X (左右 +右)</div>
+          <div id="pos-x" class="text-sm font-extrabold text-sky-300">0.00 <span class="text-[8px] font-normal text-slate-400">m</span></div>
         </div>
         <div class="glass-card p-1.5 rounded-xl border border-emerald-400/20">
-          <div class="text-[8px] font-bold uppercase tracking-wider text-emerald-400">Y (上下 +上)</div>
-          <div id="pos-y" class="text-sm font-extrabold text-emerald-300">0.00 <span class="text-[8px] text-slate-400 font-normal">m</span></div>
+          <div class="text-[8px] font-bold uppercase text-emerald-400">Y (上下 +上)</div>
+          <div id="pos-y" class="text-sm font-extrabold text-emerald-300">0.00 <span class="text-[8px] font-normal text-slate-400">m</span></div>
         </div>
         <div class="glass-card p-1.5 rounded-xl border border-purple-400/20">
-          <div class="text-[8px] font-bold uppercase tracking-wider text-slate-400">Z (前後 -前)</div>
-          <div id="pos-z" class="text-sm font-extrabold text-purple-300">0.00 <span class="text-[8px] text-slate-400 font-normal">m</span></div>
+          <div class="text-[8px] font-bold uppercase text-slate-400">Z (前後 -前)</div>
+          <div id="pos-z" class="text-sm font-extrabold text-purple-300">0.00 <span class="text-[8px] font-normal text-slate-400">m</span></div>
         </div>
       </div>
 
-      <!-- Euler Angles (Yaw, Pitch, Roll) -->
-      <div class="grid grid-cols-3 gap-1.5 text-center font-mono text-[10px]">
-        <div class="glass-card p-1 rounded-xl">
-          <span class="text-slate-400">Yaw (方位):</span>
-          <span id="ori-yaw" class="font-bold text-fuchsia-300">0.0°</span>
-        </div>
-        <div class="glass-card p-1 rounded-xl">
-          <span class="text-slate-400">Pitch (仰角):</span>
-          <span id="ori-pitch" class="font-bold text-amber-300">0.0°</span>
-        </div>
-        <div class="glass-card p-1 rounded-xl">
-          <span class="text-slate-400">Roll (回転):</span>
-          <span id="ori-roll" class="font-bold text-cyan-300">0.0°</span>
-        </div>
+      <!-- Orientation Euler Readout -->
+      <div class="grid grid-cols-3 gap-1.5 text-center font-mono text-[9px] text-slate-300">
+        <div class="bg-black/30 py-0.5 rounded-lg">Yaw: <span id="ori-yaw" class="font-bold text-fuchsia-300">0.0°</span></div>
+        <div class="bg-black/30 py-0.5 rounded-lg">Pitch: <span id="ori-pitch" class="font-bold text-amber-300">0.0°</span></div>
+        <div class="bg-black/30 py-0.5 rounded-lg">Roll: <span id="ori-roll" class="font-bold text-cyan-300">0.0°</span></div>
       </div>
 
     </div>
   </section>
 
-  <!-- TOOLBAR -->
-  <footer class="absolute bottom-0 left-0 right-0 z-40 pb-6 pt-2 px-4 glass-panel border-t-0 rounded-t-2xl flex items-center justify-around shadow-2xl">
-    <!-- Gyro Permission Request -->
-    <button id="btn-permission" class="flex flex-col items-center justify-center text-slate-300 hover:text-white active:scale-95 transition">
-      <div id="icon-gyro-box" class="w-9 h-9 rounded-full glass-button flex items-center justify-center mb-1 text-amber-400">
-        <i class="fa-solid fa-compass"></i>
+  <!-- BOTTOM 5-ACTION CONTROL DOCK -->
+  <footer class="absolute bottom-0 left-0 right-0 z-40 pb-5 pt-2 px-2 glass-panel border-t-0 rounded-t-2xl flex items-center justify-around shadow-2xl">
+    <!-- 1. Start Camera & Gyro -->
+    <button id="btn-start-cam" class="flex flex-col items-center justify-center text-slate-200 active:scale-95 transition">
+      <div id="icon-cam-box" class="w-9 h-9 rounded-full glass-button flex items-center justify-center mb-1 text-emerald-400 border border-emerald-400/40">
+        <i class="fa-solid fa-video text-xs"></i>
       </div>
-      <span class="text-[9px] font-medium">ジャイロ</span>
+      <span id="label-cam-btn" class="text-[9px] font-bold">カメラ起動</span>
     </button>
 
-    <!-- SLAM Play/Pause Button -->
-    <button id="btn-start" class="flex flex-col items-center justify-center active:scale-95 transition">
-      <div id="btn-start-circle" class="w-12 h-12 rounded-full bg-sky-600 hover:bg-sky-500 flex items-center justify-center text-white shadow-lg shadow-sky-600/40 border-2 border-white/20">
-        <i id="btn-start-icon" class="fa-solid fa-play text-lg ml-0.5"></i>
+    <!-- 2. Reset Origin -->
+    <button id="btn-reset-origin" class="flex flex-col items-center justify-center text-slate-200 active:scale-95 transition">
+      <div class="w-9 h-9 rounded-full glass-button flex items-center justify-center mb-1 text-rose-400">
+        <i class="fa-solid fa-bullseye text-xs"></i>
       </div>
-      <span id="btn-start-text" class="text-[9px] font-bold mt-1 text-slate-100">SLAM開始</span>
+      <span class="text-[9px] font-medium">原点リセット</span>
     </button>
 
-    <!-- 2D Vectors Toggle -->
-    <button id="btn-toggle-vectors" class="flex flex-col items-center justify-center text-slate-300 hover:text-white active:scale-95 transition">
+    <!-- 3. Toggle 2D Overlay -->
+    <button id="btn-toggle-vectors" class="flex flex-col items-center justify-center text-slate-200 active:scale-95 transition">
       <div id="icon-vectors-box" class="w-9 h-9 rounded-full glass-button flex items-center justify-center mb-1 text-cyan-400">
-        <i class="fa-solid fa-vector-square"></i>
+        <i class="fa-solid fa-crosshairs text-xs"></i>
       </div>
-      <span class="text-[9px] font-medium">特徴点表示</span>
+      <span class="text-[9px] font-medium">2D投影表示</span>
+    </button>
+
+    <!-- 4. 3D Measure Mode Toggle -->
+    <button id="btn-measure-mode" class="flex flex-col items-center justify-center text-slate-200 active:scale-95 transition">
+      <div id="icon-measure-box" class="w-9 h-9 rounded-full glass-button flex items-center justify-center mb-1 text-amber-400">
+        <i class="fa-solid fa-ruler-combined text-xs"></i>
+      </div>
+      <span id="label-measure-btn" class="text-[9px] font-medium">3D計測</span>
+    </button>
+
+    <!-- 5. Stats & Export Drawer -->
+    <button id="btn-toggle-traj-win" class="flex flex-col items-center justify-center text-slate-200 active:scale-95 transition">
+      <div class="w-9 h-9 rounded-full glass-button flex items-center justify-center mb-1 text-purple-400">
+        <i class="fa-solid fa-chart-simple text-xs"></i>
+      </div>
+      <span class="text-[9px] font-medium">統計/出力</span>
     </button>
   </footer>
 
-  <!-- INFO & EXPLANATION MODAL -->
+  <!-- INFO & GUIDE MODAL -->
   <div id="modal-info" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-lg flex items-center justify-center p-5 opacity-0 pointer-events-none transition-opacity duration-300">
-    <div class="glass-panel w-full max-w-md max-h-[82vh] rounded-3xl p-6 overflow-y-auto space-y-4 border border-white/15 shadow-2xl">
+    <div class="glass-panel w-full max-w-md max-h-[82vh] rounded-3xl p-5 overflow-y-auto space-y-3.5 border border-white/15 shadow-2xl">
       <div class="flex justify-between items-center pb-2 border-b border-white/10">
         <div>
           <h2 class="text-base font-bold text-white flex items-center gap-2">
-            <i class="fa-solid fa-ruler-combined text-amber-400"></i> 3D点群マッピング & 計測ツール
+            <i class="fa-solid fa-anchor text-fuchsia-400"></i> Map-to-Frame PnP SLAM
           </h2>
-          <span class="text-[9px] font-mono text-cyan-400">ビルドバージョン: v2026.10.27-1650</span>
+          <span class="text-[10px] font-mono text-cyan-300 font-bold">ビルドバージョン: v2026.11.12-1422</span>
         </div>
         <button id="btn-close-modal" class="p-2 text-slate-400 hover:text-white">
           <i class="fa-solid fa-xmark text-xl"></i>
         </button>
       </div>
 
-      <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
-        <div class="p-3 glass-card rounded-2xl border border-sky-500/20">
-          <h3 class="font-semibold text-sky-300 text-sm mb-1">1. 厳密な奥行き三角測量モデル (Depth Triangulation)</h3>
-          <p>iPhoneカメラの実効画角（水平約68°）に基づいたピンホール光線逆投影を採用。最低8cm以上のカメラ並進移動と4.0°以上の視差角（Parallax）を条件とし、空間光線交差の残差が5cm未満の信頼できる点のみを3D復元します。</p>
+      <div class="space-y-2.5 text-xs text-slate-300 leading-relaxed">
+        <div class="p-3 glass-card rounded-2xl border border-fuchsia-500/30">
+          <h3 class="font-bold text-fuchsia-300 text-xs mb-1">1. 空間基準アンカー & PnP自己位置推定</h3>
+          <p>カメラが捉えた空間内の特徴点を3Dアンカー群として固定し、毎フレーム「3Dアンカーの再投影位置」と「実際の画像検出位置」の誤差（Reprojection RMSE）をGauss-Newton法で最小化してカメラの3次元変位（X, Y, Z）を直接逆算します。</p>
         </div>
 
-        <div class="p-3 glass-card rounded-2xl border border-amber-500/20">
-          <h3 class="font-semibold text-amber-300 text-sm mb-1">2. 3D空間距離計測</h3>
-          <p>「計測」ボタンを押し、3Dマップ上で蓄積された点群（または「現在地打点」）から2点をタップして指定すると、立体空間内の正確なユークリッド距離（cm / m）がガイド線とともに描画されます。</p>
+        <div class="p-3 glass-card rounded-2xl border border-sky-500/30">
+          <h3 class="font-bold text-sky-300 text-xs mb-1">2. 多視点三角測量による奥行き精緻化</h3>
+          <p>iPhone水平画角68°モデルに基づき、8cm以上のカメラ移動と4.0°以上の視差角が得られたアンカー点を三角測量で実空間奥行き（0.3m〜6.0m）へ更新。新しい場所へ移動するとキーフレームを自動追加して空間マップを拡張します。</p>
         </div>
 
-        <div class="p-3 glass-card rounded-2xl border border-emerald-500/20">
-          <h3 class="font-semibold text-emerald-300 text-sm mb-1">3. 実写RGBカラー保持</h3>
-          <p>検出された角点に対応する実写フレームのRGB値をそのまま点群の頂点色として焼き込み、現実に近い色合いの立体復元を行います。</p>
+        <div class="p-3 glass-card rounded-2xl border border-amber-500/30">
+          <h3 class="font-bold text-amber-300 text-xs mb-1">3. 3D空間距離計測ツール</h3>
+          <p>「3D計測」ボタンを押し、3Dマップ上で蓄積されたRGB点群（または現在地）から2点をタップすると、空間内の実距離（cm / m）を計測・記録できます。</p>
         </div>
       </div>
 
-      <button id="btn-modal-gotit" class="w-full py-3 rounded-2xl bg-amber-600 hover:bg-amber-500 text-white font-semibold text-sm transition shadow-lg shadow-amber-600/30">
-        理解しました
+      <button id="btn-modal-gotit" class="w-full py-2.5 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs transition shadow-lg shadow-sky-600/30">
+        閉じる
       </button>
     </div>
   </div>
 
+  <!-- Offscreen Processing Canvas -->
   <canvas id="proc-canvas" class="hidden"></canvas>
 
   <script>
     /**
-     * iPhone Visual SLAM with Overhauled Multi-View Depth Triangulation
-     * Version: v2026.10.27-1650
+     * iPhone Visual SLAM with Map-to-Frame PnP Gauss-Newton Solver
+     * Version: v2026.11.12-1422
      */
-    const APP_BUILD_VERSION = "v2026.10.27-1650";
+    const APP_BUILD_VERSION = "v2026.11.12-1422";
+
+    // Pinhole Camera Intrinsics (iPhone Rear Wide ~68 deg horizontal FOV)
+    const PROC_WIDTH = 240;
+    const PROC_HEIGHT = 180;
+    const H_FOV_DEG = 68.0;
+    const FOCAL_PX = (PROC_WIDTH * 0.5) / Math.tan((H_FOV_DEG * 0.5 * Math.PI) / 180.0);
+    const CX = PROC_WIDTH * 0.5;
+    const CY = PROC_HEIGHT * 0.5;
 
     const state = {
+      isCameraReady: false,
       isTracking: false,
-      activeMainView: 'camera',
+      viewMode: 'camera', // 'camera' | '3d' | 'split'
       showVectors: true,
       hasSensorPermission: false,
+
       fps: 0,
       frameCount: 0,
       lastFpsUpdate: performance.now(),
       lastFrameTime: performance.now(),
-      
-      // Self-Position in Three.js coordinates: +X=Right, +Y=Up, -Z=Forward
+
+      // Current Camera Pose in Right-Handed Y-up World (+X: Right, +Y: Up, -Z: Forward)
       pose: {
         x: 0, y: 0, z: 0,
         pitch: 0, yaw: 0, roll: 0
       },
       lastPose: { x: 0, y: 0, z: 0 },
       totalDistance: 0,
-      currentSpeed: 0,
+      reprojectionRMSE: 0,
+      lockedAnchorCount: 0,
+      keyframeCount: 0,
+      lastKeyframePose: { x: 0, y: 0, z: 0, yaw: 0, pitch: 0 },
 
-      // Trajectory Analyzer & Point Cloud Settings
-      maxTrailLength: 250,
-      pointSize: 0.08,
-      activeTrajTab: '2d',
+      // Gyroscope Orientation Tracking
+      sensor: {
+        initAlpha: null, initBeta: null, initGamma: null,
+        rawAlpha: 0, rawBeta: 0, rawGamma: 0
+      },
 
-      // 3D Measurement Mode State
+      // Active 2D-3D Tracked Features & Persistent World Anchors
+      // Each item: { id, u, v, prevU, prevV, trail: [{u,v}], worldPos: THREE.Vector3, birthOrigin: THREE.Vector3, birthRay: THREE.Vector3, isTriangulated: bool, projU, projV, residualPx, color: {r,g,b}, age, lostFrames }
+      activeAnchors: [],
+      nextAnchorId: 1,
+
+      // Triangulated Persistent 3D Point Cloud Landmarks
+      triangulatedMapPoints: [], // { position: THREE.Vector3, color: {r,g,b} }
+      trajectory3D: [],
+
+      // 3D Measurement State
       isMeasuring: false,
       measureStartPoint: null,
       measureEndPoint: null,
-      measureRecords: [], // { id, p1, p2, distance, lineMesh, labelSprite }
+      measureRecords: [],
 
-      // Device Gyro Orientation
-      sensor: {
-        alpha: 0, beta: 0, gamma: 0,
-        initAlpha: null, initBeta: null, initGamma: null,
-        lastAlpha: 0, lastBeta: 0, lastGamma: 0,
-        dAlpha: 0, dBeta: 0, dGamma: 0
-      },
-
-      // SLAM Features & Persistent 3D Point Cloud Landmarks
-      trackedFeatures: [],
-      triangulatedMapPoints: [], // { position: THREE.Vector3, color: {r, g, b} }
-      trajectory3D: []
+      // UI & Visualization Settings
+      pointSize: 0.08,
+      activeTrajTab: '2d'
     };
 
-    // --- DOM Elements ---
+    // --- DOM References ---
     const videoElem = document.getElementById('camera-feed');
     const overlayCanvas = document.getElementById('tracking-canvas');
     const overlayCtx = overlayCanvas.getContext('2d');
@@ -492,49 +485,43 @@
     const procCtx = procCanvas.getContext('2d', { willReadFrequently: true });
     const radarCanvas = document.getElementById('radar-canvas');
     const radarCtx = radarCanvas.getContext('2d');
-
     const trajCanvas2D = document.getElementById('traj-canvas-2d');
     const trajCtx2D = trajCanvas2D.getContext('2d');
 
     const cameraViewport = document.getElementById('camera-viewport');
     const threeViewport = document.getElementById('three-viewport');
     const pipWindow = document.getElementById('pip-window');
+    const pipContent = document.getElementById('pip-content');
     const threeCanvasContainer = document.getElementById('three-canvas-container');
 
     const statusIndicator = document.getElementById('status-indicator');
     const statusText = document.getElementById('status-text');
-    const statFeatures = document.getElementById('stat-features');
-    const statTriangulated = document.getElementById('stat-triangulated');
-    const statFps = document.getElementById('stat-fps');
-    const statSummaryPts = document.getElementById('stat-summary-pts');
+    const statAnchorsElem = document.getElementById('stat-anchors');
+    const statRmseElem = document.getElementById('stat-rmse');
+    const statTriangulatedElem = document.getElementById('stat-triangulated');
+    const statFpsElem = document.getElementById('stat-fps');
 
     const posXElem = document.getElementById('pos-x');
     const posYElem = document.getElementById('pos-y');
     const posZElem = document.getElementById('pos-z');
     const statDistElem = document.getElementById('stat-dist');
-    const statSpeedElem = document.getElementById('stat-speed');
-    
     const yawElem = document.getElementById('ori-yaw');
     const pitchElem = document.getElementById('ori-pitch');
     const rollElem = document.getElementById('ori-roll');
 
-    const btnStart = document.getElementById('btn-start');
-    const btnStartIcon = document.getElementById('btn-start-icon');
-    const btnStartCircle = document.getElementById('btn-start-circle');
-    const btnStartText = document.getElementById('btn-start-text');
-    
-    const btnCamRetry = document.getElementById('btn-cam-retry');
-    const btnPermission = document.getElementById('btn-permission');
-    const iconGyroBox = document.getElementById('icon-gyro-box');
+    const btnToggleView = document.getElementById('btn-toggle-view');
+    const viewModeLabel = document.getElementById('view-mode-label');
+    const btnStartCam = document.getElementById('btn-start-cam');
+    const labelCamBtn = document.getElementById('label-cam-btn');
     const btnResetOrigin = document.getElementById('btn-reset-origin');
     const btnToggleVectors = document.getElementById('btn-toggle-vectors');
     const iconVectorsBox = document.getElementById('icon-vectors-box');
-    const btnToggleView = document.getElementById('btn-toggle-view');
-    const viewModeLabel = document.getElementById('view-mode-label');
-
-    // Measure Mode Elements
     const btnMeasureMode = document.getElementById('btn-measure-mode');
+    const iconMeasureBox = document.getElementById('icon-measure-box');
     const labelMeasureBtn = document.getElementById('label-measure-btn');
+    const btnToggleTrajWin = document.getElementById('btn-toggle-traj-win');
+
+    // Measure HUD
     const measureActivePanel = document.getElementById('measure-active-panel');
     const measureInstructionsBadge = document.getElementById('measure-instructions-badge');
     const measureStepText = document.getElementById('measure-step-text');
@@ -543,63 +530,64 @@
     const btnMeasureClear = document.getElementById('btn-measure-clear');
     const measureListContainer = document.getElementById('measure-list-container');
     const btnClearAllMeasures = document.getElementById('btn-clear-all-measures');
-    
+
+    // Drawer & Modal
+    const trajectoryWindow = document.getElementById('trajectory-window');
+    const btnTrajClose = document.getElementById('btn-traj-close');
+    const tabTraj2D = document.getElementById('tab-traj-2d');
+    const tabTrajMeasures = document.getElementById('tab-traj-measures');
+    const tabTrajStats = document.getElementById('tab-traj-stats');
+    const viewTraj2D = document.getElementById('view-traj-2d');
+    const viewTrajMeasures = document.getElementById('view-traj-measures');
+    const viewTrajStats = document.getElementById('view-traj-stats');
+    const statSummaryAnchors = document.getElementById('stat-summary-anchors');
+    const statSummaryKf = document.getElementById('stat-summary-kf');
+    const statSummaryPts = document.getElementById('stat-summary-pts');
+    const statSummaryRmse = document.getElementById('stat-summary-rmse');
+    const sliderPointSize = document.getElementById('slider-point-size');
+    const labelPointSize = document.getElementById('label-point-size');
+    const btnClearTraj = document.getElementById('btn-clear-traj');
+    const btnExportJSON = document.getElementById('btn-export-json');
+    const btnExportCSV = document.getElementById('btn-export-csv');
+
     const btnInfo = document.getElementById('btn-info');
     const modalInfo = document.getElementById('modal-info');
     const btnCloseModal = document.getElementById('btn-close-modal');
     const btnModalGotit = document.getElementById('btn-modal-gotit');
 
-    const trajectoryWindow = document.getElementById('trajectory-window');
-    const btnToggleTrajWin = document.getElementById('btn-toggle-traj-win');
-    const btnTrajClose = document.getElementById('btn-traj-close');
-    const btnTrajPin = document.getElementById('btn-traj-pin');
-    
-    const tabTraj2D = document.getElementById('tab-traj-2d');
-    const tabTrajMeasures = document.getElementById('tab-traj-measures');
-    const tabTrajStats = document.getElementById('tab-traj-stats');
-    
-    const viewTraj2D = document.getElementById('view-traj-2d');
-    const viewTrajMeasures = document.getElementById('view-traj-measures');
-    const viewTrajStats = document.getElementById('view-traj-stats');
+    // Previous grayscale frame buffer for optical flow block matching
+    let prevGrayFrame = null;
 
-    const statEnvX = document.getElementById('stat-env-x');
-    const statEnvZ = document.getElementById('stat-env-z');
-    const statEnvY = document.getElementById('stat-env-y');
-
-    const sliderTrailLength = document.getElementById('slider-trail-length');
-    const labelTrailLength = document.getElementById('label-trail-length');
-    const sliderPointSize = document.getElementById('slider-point-size');
-    const labelPointSize = document.getElementById('label-point-size');
-    
-    const btnClearTraj = document.getElementById('btn-clear-traj');
-    const btnExportJSON = document.getElementById('btn-export-json');
-    const btnExportCSV = document.getElementById('btn-export-csv');
-
-    // --- Three.js Spatial Objects ---
+    // --- Three.js Scene Objects ---
     let scene, camera3D, renderer3D, raycaster, mouseRaycast;
-    let trajectoryMeshGroup, pillarsGroup;
+    let trajectoryMeshGroup, pillarsGroup, measurementGroup, snapCursorMesh;
     let startMarkerMesh, currentMarkerMesh;
     let pointCloudParticles, pointCloudGeometry;
-    let cameraAvatarGroup, measurementGroup;
+    let cameraAvatarGroup;
 
-    // Interactive 3D Orbit Controls
+    // 3D Orbit Camera Parameters
     let is3DTouchDragging = false, previousTouchX = 0, previousTouchY = 0;
-    let orbitAzimuth = 0, orbitElevation = 0.45, orbitDistance = 4.2;
+    let initialPinchDist = 0;
+    let orbitAzimuth = 0.25, orbitElevation = 0.45, orbitDistance = 3.8;
 
     // ==========================================
-    // 1. INITIALIZATION & LIFECYCLE
+    // 1. INITIALIZATION & CAMERA STREAMING
     // ==========================================
     window.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('app-build-ver').textContent = APP_BUILD_VERSION;
+      procCanvas.width = PROC_WIDTH;
+      procCanvas.height = PROC_HEIGHT;
+
       initThreeJS();
       resizeCanvases();
       window.addEventListener('resize', resizeCanvases);
 
-      await setupCamera();
       setupEventListeners();
       updateViewportLayout();
 
-      document.body.addEventListener('touchstart', ensureVideoPlaying, { passive: true });
+      // Attempt initial camera start
+      await startCameraAndSensors();
+      requestAnimationFrame(mainLoop);
     });
 
     function resizeCanvases() {
@@ -609,203 +597,200 @@
       overlayCanvas.width = width;
       overlayCanvas.height = height;
 
-      procCanvas.width = 240;
-      procCanvas.height = 180;
-
       radarCanvas.width = 120;
       radarCanvas.height = 120;
 
       if (trajCanvas2D && trajCanvas2D.parentElement) {
-        trajCanvas2D.width = trajCanvas2D.parentElement.clientWidth;
-        trajCanvas2D.height = trajCanvas2D.parentElement.clientHeight;
+        trajCanvas2D.width = trajCanvas2D.parentElement.clientWidth || 300;
+        trajCanvas2D.height = trajCanvas2D.parentElement.clientHeight || 176;
       }
 
-      if (renderer3D) {
-        renderer3D.setSize(width, height);
-        camera3D.aspect = width / height;
+      if (renderer3D && camera3D) {
+        const containerW = threeCanvasContainer.clientWidth || width;
+        const containerH = threeCanvasContainer.clientHeight || height;
+        renderer3D.setSize(containerW, containerH);
+        camera3D.aspect = containerW / containerH;
         camera3D.updateProjectionMatrix();
       }
     }
 
-    async function setupCamera() {
-      setStatus('カメラ接続中...', 'bg-amber-500');
-      try {
-        const constraints = {
-          video: {
-            facingMode: { ideal: "environment" },
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          },
-          audio: false
-        };
+    async function startCameraAndSensors() {
+      setStatus('カメラ・センサー起動中...', 'bg-amber-500');
+      await requestSensorPermissions();
 
-        let stream;
-        try {
-          stream = await navigator.mediaDevices.getUserMedia(constraints);
-        } catch (e) {
-          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      try {
+        if (!videoElem.srcObject) {
+          const constraints = {
+            video: {
+              facingMode: { ideal: "environment" },
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            },
+            audio: false
+          };
+
+          let stream;
+          try {
+            stream = await navigator.mediaDevices.getUserMedia(constraints);
+          } catch (e) {
+            stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          }
+
+          videoElem.srcObject = stream;
         }
 
-        videoElem.srcObject = stream;
-        await videoElem.play().catch(e => console.log("Safari play gesture required:", e));
-
-        btnCamRetry.classList.add('hidden');
-        setStatus('カメラ準備完了', 'bg-emerald-500');
+        await videoElem.play();
+        state.isCameraReady = true;
+        state.isTracking = true;
+        labelCamBtn.textContent = "稼働中";
+        setStatus('PnP 空間ロック準備完了', 'bg-emerald-500');
       } catch (err) {
-        console.error("Camera access failed:", err);
-        btnCamRetry.classList.remove('hidden');
-        setStatus('カメラ権限が必要です (起動をタップ)', 'bg-rose-500');
+        console.warn("Camera gesture required:", err);
+        setStatus('「カメラ起動」をタップ', 'bg-amber-500');
       }
     }
 
     function ensureVideoPlaying() {
-      if (videoElem && videoElem.paused) {
+      if (videoElem && videoElem.srcObject && videoElem.paused) {
         videoElem.play().catch(() => {});
       }
     }
 
     function setStatus(text, colorClass) {
       statusText.textContent = text;
-      statusIndicator.className = `w-3 h-3 rounded-full status-pulse ${colorClass}`;
+      statusIndicator.className = `w-3 h-3 rounded-full status-pulse shrink-0 ${colorClass}`;
     }
 
     // ==========================================
-    // 2. SENSOR FUSION & EVENT SETUP
+    // 2. SENSORS & UI EVENT HANDLERS
     // ==========================================
     function setupEventListeners() {
-      btnStart.addEventListener('click', toggleSLAM);
-      btnCamRetry.addEventListener('click', () => { ensureVideoPlaying(); setupCamera(); });
-      btnPermission.addEventListener('click', requestSensorPermissions);
-      btnResetOrigin.addEventListener('click', resetOriginPosition);
-      btnToggleVectors.addEventListener('click', toggleVectors);
-      btnToggleView.addEventListener('click', toggleMainView);
-      pipWindow.addEventListener('click', toggleMainView);
+      btnStartCam.addEventListener('click', async () => {
+        await startCameraAndSensors();
+        ensureVideoPlaying();
+      });
 
-      // Measurement UI Controls
+      btnResetOrigin.addEventListener('click', resetOriginPosition);
+      btnToggleVectors.addEventListener('click', () => {
+        state.showVectors = !state.showVectors;
+        iconVectorsBox.classList.toggle('text-cyan-400', state.showVectors);
+        iconVectorsBox.classList.toggle('text-slate-500', !state.showVectors);
+      });
+
+      btnToggleView.addEventListener('click', cycleViewMode);
+      pipWindow.addEventListener('click', cycleViewMode);
+
+      // 3D Measure Controls
       btnMeasureMode.addEventListener('click', toggleMeasureMode);
-      btnMeasureCamPt.addEventListener('click', addCurrentPositionAsMeasurePoint);
+      btnMeasureCamPt.addEventListener('click', () => {
+        addPointToMeasurement(new THREE.Vector3(state.pose.x, state.pose.y, state.pose.z));
+      });
       btnMeasureClear.addEventListener('click', clearCurrentMeasurement);
       btnClearAllMeasures.addEventListener('click', clearAllMeasurements);
 
+      // Stats Drawer
       btnToggleTrajWin.addEventListener('click', toggleTrajectoryWindow);
       btnTrajClose.addEventListener('click', toggleTrajectoryWindow);
-      btnTrajPin.addEventListener('click', () => trajectoryWindow.classList.toggle('max-h-[90vh]'));
-
       tabTraj2D.addEventListener('click', () => setTrajTab('2d'));
       tabTrajMeasures.addEventListener('click', () => setTrajTab('measures'));
       tabTrajStats.addEventListener('click', () => setTrajTab('stats'));
 
-      sliderTrailLength.addEventListener('input', (e) => {
-        state.maxTrailLength = parseInt(e.target.value);
-        labelTrailLength.textContent = `${state.maxTrailLength} 点`;
-      });
       sliderPointSize.addEventListener('input', (e) => {
         state.pointSize = parseFloat(e.target.value);
         labelPointSize.textContent = state.pointSize.toFixed(2);
-        if (pointCloudParticles) {
-          pointCloudParticles.material.size = state.pointSize;
-        }
+        if (pointCloudParticles) pointCloudParticles.material.size = state.pointSize;
       });
 
       btnClearTraj.addEventListener('click', resetOriginPosition);
       btnExportJSON.addEventListener('click', exportTrajectoryJSON);
       btnExportCSV.addEventListener('click', exportTrajectoryCSV);
 
+      // Info Modal
       btnInfo.addEventListener('click', () => modalInfo.classList.remove('opacity-0', 'pointer-events-none'));
       btnCloseModal.addEventListener('click', () => modalInfo.classList.add('opacity-0', 'pointer-events-none'));
       btnModalGotit.addEventListener('click', () => modalInfo.classList.add('opacity-0', 'pointer-events-none'));
 
       window.addEventListener('deviceorientation', handleOrientation, true);
+      document.body.addEventListener('touchstart', ensureVideoPlaying, { passive: true });
 
-      // 3D Orbit Touch & Tap-to-Measure Handlers
-      const threeContainer = document.getElementById('three-viewport');
+      // 3D Viewport Touch Orbit, Pinch Zoom & Tap-to-Measure
       let touchStartTime = 0;
       let touchStartPos = { x: 0, y: 0 };
 
-      threeContainer.addEventListener('touchstart', (e) => {
+      threeViewport.addEventListener('touchstart', (e) => {
         if (e.touches.length === 1) {
           is3DTouchDragging = true;
           previousTouchX = e.touches[0].clientX;
           previousTouchY = e.touches[0].clientY;
           touchStartTime = performance.now();
-          touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+          touchStartPos = { x: previousTouchX, y: previousTouchY };
+        } else if (e.touches.length === 2) {
+          is3DTouchDragging = false;
+          initialPinchDist = Math.hypot(
+            e.touches[0].clientX - e.touches[1].clientX,
+            e.touches[0].clientY - e.touches[1].clientY
+          );
         }
       }, { passive: true });
 
-      threeContainer.addEventListener('touchmove', (e) => {
+      threeViewport.addEventListener('touchmove', (e) => {
         if (is3DTouchDragging && e.touches.length === 1) {
-          const deltaX = e.touches[0].clientX - previousTouchX;
-          const deltaY = e.touches[0].clientY - previousTouchY;
-
-          orbitAzimuth -= deltaX * 0.008;
-          orbitElevation = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, orbitElevation + deltaY * 0.008));
-
+          const dx = e.touches[0].clientX - previousTouchX;
+          const dy = e.touches[0].clientY - previousTouchY;
+          orbitAzimuth -= dx * 0.008;
+          orbitElevation = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, orbitElevation + dy * 0.008));
           previousTouchX = e.touches[0].clientX;
           previousTouchY = e.touches[0].clientY;
+        } else if (e.touches.length === 2 && initialPinchDist > 0) {
+          const curDist = Math.hypot(
+            e.touches[0].clientX - e.touches[1].clientX,
+            e.touches[0].clientY - e.touches[1].clientY
+          );
+          const scale = initialPinchDist / Math.max(10, curDist);
+          orbitDistance = Math.max(1.0, Math.min(14.0, orbitDistance * scale));
+          initialPinchDist = curDist;
         }
       }, { passive: true });
 
-      threeContainer.addEventListener('touchend', (e) => {
-        const touchDuration = performance.now() - touchStartTime;
-        const tapDistance = Math.hypot(previousTouchX - touchStartPos.x, previousTouchY - touchStartPos.y);
-
-        // Tap detected (quick touch without large drag)
-        if (touchDuration < 320 && tapDistance < 12) {
+      threeViewport.addEventListener('touchend', (e) => {
+        const dt = performance.now() - touchStartTime;
+        const moveDist = Math.hypot(previousTouchX - touchStartPos.x, previousTouchY - touchStartPos.y);
+        if (dt < 300 && moveDist < 12) {
           handle3DTapForMeasurement(touchStartPos.x, touchStartPos.y);
         }
         is3DTouchDragging = false;
+        initialPinchDist = 0;
       });
     }
 
     async function requestSensorPermissions() {
       if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
         try {
-          const permissionState = await DeviceOrientationEvent.requestPermission();
-          if (permissionState === 'granted') {
-            state.hasSensorPermission = true;
-            iconGyroBox.classList.add('text-emerald-400');
-            setStatus('ジャイロセンサー接続完了', 'bg-emerald-500');
-          }
-        } catch (error) {
-          console.error("Gyro permission error:", error);
+          const res = await DeviceOrientationEvent.requestPermission();
+          if (res === 'granted') state.hasSensorPermission = true;
+        } catch (err) {
+          console.warn("Gyro permission skipped:", err);
         }
       } else {
         state.hasSensorPermission = true;
-        iconGyroBox.classList.add('text-emerald-400');
-        setStatus('センサーアクティブ', 'bg-emerald-500');
       }
     }
 
     function handleOrientation(e) {
       if (e.alpha === null) return;
-
       if (state.sensor.initAlpha === null) {
         state.sensor.initAlpha = e.alpha;
         state.sensor.initBeta = e.beta;
         state.sensor.initGamma = e.gamma;
-        state.sensor.lastAlpha = e.alpha;
-        state.sensor.lastBeta = e.beta;
-        state.sensor.lastGamma = e.gamma;
       }
 
-      let dAlpha = e.alpha - state.sensor.lastAlpha;
-      let dBeta = e.beta - state.sensor.lastBeta;
-      let dGamma = e.gamma - state.sensor.lastGamma;
+      let yaw = e.alpha - state.sensor.initAlpha;
+      if (yaw > 180) yaw -= 360;
+      if (yaw < -180) yaw += 360;
 
-      if (dAlpha > 180) dAlpha -= 360;
-      if (dAlpha < -180) dAlpha += 360;
-
-      state.sensor.dAlpha = dAlpha;
-      state.sensor.dBeta = dBeta;
-      state.sensor.dGamma = dGamma;
-
-      state.sensor.lastAlpha = e.alpha;
-      state.sensor.lastBeta = e.beta;
-      state.sensor.lastGamma = e.gamma;
-
-      // Coordinate alignment (+Y is up towards ceiling)
-      state.pose.yaw = (e.alpha - state.sensor.initAlpha);
-      state.pose.pitch = (e.beta - state.sensor.initBeta);
+      // Map device orientation to Three.js Y-up Euler angles
+      state.pose.yaw = yaw;
+      state.pose.pitch = e.beta - state.sensor.initBeta;
       state.pose.roll = -(e.gamma - state.sensor.initGamma);
 
       yawElem.textContent = `${state.pose.yaw.toFixed(1)}°`;
@@ -813,96 +798,785 @@
       rollElem.textContent = `${state.pose.roll.toFixed(1)}°`;
     }
 
-    function toggleMainView() {
-      state.activeMainView = (state.activeMainView === 'camera') ? '3d' : 'camera';
+    function cycleViewMode() {
+      if (state.viewMode === 'camera') state.viewMode = '3d';
+      else if (state.viewMode === '3d') state.viewMode = 'split';
+      else state.viewMode = 'camera';
       updateViewportLayout();
     }
 
     function updateViewportLayout() {
       ensureVideoPlaying();
 
-      if (state.activeMainView === 'camera') {
-        cameraViewport.className = "absolute inset-0 w-full h-full z-10 opacity-100 transition-all duration-300 pointer-events-auto";
+      if (state.viewMode === 'camera') {
+        cameraViewport.className = "absolute inset-0 w-full h-full z-10 opacity-100 pointer-events-auto transition-all duration-300";
         threeViewport.className = "absolute inset-0 w-full h-full z-0 opacity-0 pointer-events-none transition-all duration-300";
-        
+        pipWindow.classList.remove('hidden');
+
         if (!cameraViewport.contains(videoElem)) {
           cameraViewport.insertBefore(videoElem, overlayCanvas);
         }
-        pipWindow.innerHTML = '';
-        pipWindow.appendChild(threeCanvasContainer);
+        pipContent.innerHTML = '';
+        pipContent.appendChild(threeCanvasContainer);
         viewModeLabel.textContent = "カメラ";
-      } else {
-        threeViewport.className = "absolute inset-0 w-full h-full z-10 opacity-100 transition-all duration-300 pointer-events-auto";
+      } else if (state.viewMode === '3d') {
+        threeViewport.className = "absolute inset-0 w-full h-full z-10 opacity-100 pointer-events-auto transition-all duration-300";
         cameraViewport.className = "absolute inset-0 w-full h-full z-0 opacity-0 pointer-events-none transition-all duration-300";
+        pipWindow.classList.remove('hidden');
 
         if (!threeViewport.contains(threeCanvasContainer)) {
           threeViewport.insertBefore(threeCanvasContainer, threeViewport.firstChild);
         }
-        pipWindow.innerHTML = '';
-        pipWindow.appendChild(videoElem);
+        pipContent.innerHTML = '';
+        pipContent.appendChild(videoElem);
         viewModeLabel.textContent = "3Dマップ";
-      }
-      
-      resizeCanvases();
-      videoElem.play().catch(() => {});
-    }
+      } else {
+        // Split View: Top Camera, Bottom 3D Map
+        cameraViewport.className = "absolute top-0 left-0 right-0 h-1/2 z-10 opacity-100 pointer-events-auto border-b border-sky-400/40 transition-all duration-300";
+        threeViewport.className = "absolute bottom-0 left-0 right-0 h-1/2 z-10 opacity-100 pointer-events-auto transition-all duration-300";
+        pipWindow.classList.add('hidden');
 
-    function toggleVectors() {
-      state.showVectors = !state.showVectors;
-      iconVectorsBox.classList.toggle('text-cyan-400');
-      iconVectorsBox.classList.toggle('text-slate-500');
+        if (!cameraViewport.contains(videoElem)) {
+          cameraViewport.insertBefore(videoElem, overlayCanvas);
+        }
+        if (!threeViewport.contains(threeCanvasContainer)) {
+          threeViewport.insertBefore(threeCanvasContainer, threeViewport.firstChild);
+        }
+        viewModeLabel.textContent = "2画面分割";
+      }
+
+      setTimeout(() => {
+        resizeCanvases();
+        ensureVideoPlaying();
+      }, 50);
     }
 
     // ==========================================
-    // 3. 3D MEASUREMENT ENGINE
+    // 3. MAP-TO-FRAME PNP SLAM ALGORITHM
+    // ==========================================
+    function mainLoop() {
+      const now = performance.now();
+      const dt = Math.min(0.1, (now - state.lastFrameTime) / 1000);
+      state.lastFrameTime = now;
+
+      if (state.isTracking && videoElem.readyState >= 2) {
+        procCtx.drawImage(videoElem, 0, 0, PROC_WIDTH, PROC_HEIGHT);
+        const frameData = procCtx.getImageData(0, 0, PROC_WIDTH, PROC_HEIGHT);
+        runPnPVisualSLAM(frameData, dt);
+      }
+
+      render2DReprojectionOverlay();
+      render2DRadarMap();
+      renderTrajectoryCanvases();
+      update3DScene();
+
+      // FPS calculation
+      state.frameCount++;
+      if (now - state.lastFpsUpdate >= 500) {
+        state.fps = Math.round((state.frameCount * 1000) / (now - state.lastFpsUpdate));
+        statFpsElem.textContent = state.fps;
+        state.frameCount = 0;
+        state.lastFpsUpdate = now;
+      }
+
+      requestAnimationFrame(mainLoop);
+    }
+
+    function getLuminance(data, idx) {
+      return 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+    }
+
+    /**
+     * Extract high-contrast Shi-Tomasi corner endpoints with Grid-NMS
+     */
+    function extractShiTomasiCorners(data, maxCorners = 48) {
+      const corners = [];
+      const rows = 5;
+      const cols = 6;
+      const cellW = Math.floor(PROC_WIDTH / cols);
+      const cellH = Math.floor(PROC_HEIGHT / rows);
+
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          let bestScore = -Infinity;
+          let bestCorner = null;
+
+          const x0 = c * cellW + 8;
+          const x1 = (c + 1) * cellW - 8;
+          const y0 = r * cellH + 8;
+          const y1 = (r + 1) * cellH - 8;
+
+          for (let y = y0; y < y1; y += 3) {
+            for (let x = x0; x < x1; x += 3) {
+              let Ixx = 0, Iyy = 0, Ixy = 0;
+              for (let dy = -1; dy <= 1; dy++) {
+                for (let dx = -1; dx <= 1; dx++) {
+                  const gx = (getLuminance(data, ((y + dy) * PROC_WIDTH + (x + dx + 1)) * 4) -
+                              getLuminance(data, ((y + dy) * PROC_WIDTH + (x + dx - 1)) * 4)) * 0.5;
+                  const gy = (getLuminance(data, ((y + dy + 1) * PROC_WIDTH + (x + dx)) * 4) -
+                              getLuminance(data, ((y + dy - 1) * PROC_WIDTH + (x + dx)) * 4)) * 0.5;
+                  Ixx += gx * gx;
+                  Iyy += gy * gy;
+                  Ixy += gx * gy;
+                }
+              }
+              const trace = Ixx + Iyy;
+              const detTerm = Math.sqrt(Math.max(0, (Ixx - Iyy) * (Ixx - Iyy) + 4 * Ixy * Ixy));
+              const lambdaMin = (trace - detTerm) * 0.5;
+
+              if (lambdaMin > 220 && lambdaMin > bestScore) {
+                const cIdx = (y * PROC_WIDTH + x) * 4;
+                bestScore = lambdaMin;
+                bestCorner = {
+                  u: x,
+                  v: y,
+                  score: lambdaMin,
+                  r: data[cIdx] / 255.0,
+                  g: data[cIdx + 1] / 255.0,
+                  b: data[cIdx + 2] / 255.0
+                };
+              }
+            }
+          }
+          if (bestCorner) corners.push(bestCorner);
+        }
+      }
+      return corners.sort((a, b) => b.score - a.score).slice(0, maxCorners);
+    }
+
+    /**
+     * Get Camera Rotation Matrix (World <- Camera) from Euler Angles (Y-up)
+     */
+    function getCameraRotationMatrix(pose) {
+      const euler = new THREE.Euler(
+        THREE.MathUtils.degToRad(pose.pitch),
+        THREE.MathUtils.degToRad(pose.yaw),
+        THREE.MathUtils.degToRad(pose.roll),
+        'YXZ'
+      );
+      return new THREE.Matrix4().makeRotationFromEuler(euler);
+    }
+
+    /**
+     * Project a 3D World Landmark into 2D Pinhole Pixel Coordinates (u, v)
+     */
+    function projectWorldToPixel(worldPt, camPos, invRotMat) {
+      const rel = new THREE.Vector3().subVectors(worldPt, camPos).applyMatrix4(invRotMat);
+      // Forward is -Z in Three.js camera space
+      const depth = -rel.z;
+      if (depth < 0.15) return null;
+
+      const u = CX + FOCAL_PX * (rel.x / depth);
+      const v = CY - FOCAL_PX * (rel.y / depth); // Image +v goes down, World +Y goes up
+      return { u, v, depth };
+    }
+
+    /**
+     * Back-project 2D Pixel (u, v) into Normalized World Ray Direction
+     */
+    function pixelToWorldRay(u, v, rotMat) {
+      const rayCam = new THREE.Vector3(
+        (u - CX) / FOCAL_PX,
+        -(v - CY) / FOCAL_PX,
+        -1.0
+      ).normalize();
+      return rayCam.applyMatrix4(rotMat).normalize();
+    }
+
+    /**
+     * Multi-View Stereo Ray-Ray Triangulation (Minimum 8cm baseline, >=4.0 deg parallax, <5cm residual)
+     */
+    function triangulateStereoRays(orig0, ray0, orig1, ray1) {
+      const w0 = new THREE.Vector3().subVectors(orig0, orig1);
+      const b = ray0.dot(ray1);
+      const d = ray0.dot(w0);
+      const e = ray1.dot(w0);
+
+      const denom = 1.0 - b * b; // sin^2(parallaxAngle)
+      // Enforce >= 4.0 degrees parallax angle (sin^2(4 deg) ≈ 0.00487)
+      if (denom < 0.0049) return null;
+
+      const s = (b * e - d) / denom;
+      const t = (e - b * d) / denom;
+
+      // Enforce realistic depth bounds [0.3m, 6.0m]
+      if (s < 0.3 || s > 6.0 || t < 0.3 || t > 6.0) return null;
+
+      const p0 = new THREE.Vector3().copy(orig0).addScaledVector(ray0, s);
+      const p1 = new THREE.Vector3().copy(orig1).addScaledVector(ray1, t);
+
+      // Closest-approach residual must be < 5cm
+      if (p0.distanceTo(p1) > 0.05) return null;
+
+      return new THREE.Vector3().addVectors(p0, p1).multiplyScalar(0.5);
+    }
+
+    /**
+     * Iterative Gauss-Newton 2D-3D PnP Translation Solver
+     * Minimizes sum of squared 2D reprojection residuals || (u_obs, v_obs) - proj(P_world, C) ||^2
+     * with respect to camera translation C = (x, y, z), holding gyro orientation fixed.
+     */
+    function solvePnPTranslationGaussNewton(anchors, initialCamPos, rotMat, invRotMat) {
+      if (anchors.length < 4) return null;
+
+      const camPos = initialCamPos.clone();
+      const maxIters = 6;
+      const huberDelta = 12.0; // pixels outlier threshold
+
+      // Normal equations J^T W J * delta = J^T W r (3x3 symmetric linear system)
+      for (let iter = 0; iter < maxIters; iter++) {
+        let H00 = 1e-3, H01 = 0, H02 = 0; // Small Levenberg-Marquardt damping
+        let H11 = 1e-3, H12 = 0;
+        let H22 = 1e-3;
+        let g0 = 0, g1 = 0, g2 = 0;
+        let inlierCount = 0;
+
+        for (let i = 0; i < anchors.length; i++) {
+          const a = anchors[i];
+          const rel = new THREE.Vector3().subVectors(a.worldPos, camPos).applyMatrix4(invRotMat);
+          const Z = -rel.z;
+          if (Z < 0.25 || Z > 8.0) continue;
+
+          const uPred = CX + FOCAL_PX * (rel.x / Z);
+          const vPred = CY - FOCAL_PX * (rel.y / Z);
+
+          const errU = a.u - uPred;
+          const errV = a.v - vPred;
+          const errNorm = Math.hypot(errU, errV);
+
+          // Huber robust weight to suppress optical flow outliers
+          const weight = errNorm <= huberDelta ? 1.0 : (huberDelta / errNorm);
+
+          // Jacobian of (uPred, vPred) w.r.t. camera-space point (X_c, Y_c, Z_c)
+          // Note: Z = -Z_c => u = cx - f * X_c / Z_c, v = cy + f * Y_c / Z_c
+          // Since P_cam = R^T (P_world - C), d(P_cam)/dC = -R^T
+          // d(uPred)/d(P_cam) = [ f/Z, 0, f*rel.x / Z^2 ]
+          // d(vPred)/d(P_cam) = [ 0, -f/Z, -f*rel.y / Z^2 ]
+          const invZ = 1.0 / Z;
+          const invZ2 = invZ * invZ;
+
+          const ju_xc = -FOCAL_PX * invZ;
+          const ju_yc = 0;
+          const ju_zc = -FOCAL_PX * rel.x * invZ2;
+
+          const jv_xc = 0;
+          const jv_yc = FOCAL_PX * invZ;
+          const jv_zc = FOCAL_PX * rel.y * invZ2;
+
+          // Transform Jacobian row from Camera frame to World frame via R (since d(P_cam)/dC = -R^T)
+          const e = rotMat.elements; // Column-major 4x4: R_col0=(e0,e1,e2), R_col1=(e4,e5,e6), R_col2=(e8,e9,e10)
+          const Ju0 = ju_xc * e[0] + ju_yc * e[4] + ju_zc * e[8];
+          const Ju1 = ju_xc * e[1] + ju_yc * e[5] + ju_zc * e[9];
+          const Ju2 = ju_xc * e[2] + ju_yc * e[6] + ju_zc * e[10];
+
+          const Jv0 = jv_xc * e[0] + jv_yc * e[4] + jv_zc * e[8];
+          const Jv1 = jv_xc * e[1] + jv_yc * e[5] + jv_zc * e[9];
+          const Jv2 = jv_xc * e[2] + jv_yc * e[6] + jv_zc * e[10];
+
+          H00 += weight * (Ju0 * Ju0 + Jv0 * Jv0);
+          H01 += weight * (Ju0 * Ju1 + Jv0 * Jv1);
+          H02 += weight * (Ju0 * Ju2 + Jv0 * Jv2);
+          H11 += weight * (Ju1 * Ju1 + Jv1 * Jv1);
+          H12 += weight * (Ju1 * Ju2 + Jv1 * Jv2);
+          H22 += weight * (Ju2 * Ju2 + Jv2 * Jv2);
+
+          g0 += weight * (Ju0 * errU + Jv0 * errV);
+          g1 += weight * (Ju1 * errU + Jv1 * errV);
+          g2 += weight * (Ju2 * errU + Jv2 * errV);
+          inlierCount++;
+        }
+
+        if (inlierCount < 4) return null;
+
+        // Solve 3x3 Symmetric Linear System H * delta = g via Cramer's Rule
+        const det =
+          H00 * (H11 * H22 - H12 * H12) -
+          H01 * (H01 * H22 - H12 * H02) +
+          H02 * (H01 * H12 - H11 * H02);
+
+        if (Math.abs(det) < 1e-8) break;
+
+        const invDet = 1.0 / det;
+        const dx = invDet * (
+          g0 * (H11 * H22 - H12 * H12) -
+          H01 * (g1 * H22 - H12 * g2) +
+          H02 * (g1 * H12 - H11 * g2)
+        );
+        const dy = invDet * (
+          H00 * (g1 * H22 - H12 * g2) -
+          g0 * (H01 * H22 - H12 * H02) +
+          H02 * (H01 * g2 - g1 * H02)
+        );
+        const dz = invDet * (
+          H00 * (H11 * g2 - g1 * H12) -
+          H01 * (H01 * g2 - g1 * H02) +
+          g0 * (H01 * H12 - H11 * H02)
+        );
+
+        // Clamp step size per iteration for numerical stability
+        const stepNorm = Math.hypot(dx, dy, dz);
+        const maxStep = 0.25;
+        const scale = stepNorm > maxStep ? (maxStep / stepNorm) : 1.0;
+
+        camPos.x += dx * scale;
+        camPos.y += dy * scale;
+        camPos.z += dz * scale;
+
+        if (stepNorm < 1e-4) break;
+      }
+
+      // Compute final Reprojection RMSE
+      let sumSqErr = 0;
+      let validCount = 0;
+      for (let a of anchors) {
+        const proj = projectWorldToPixel(a.worldPos, camPos, invRotMat);
+        if (proj) {
+          a.projU = proj.u;
+          a.projV = proj.v;
+          a.residualPx = Math.hypot(a.u - proj.u, a.v - proj.v);
+          sumSqErr += a.residualPx * a.residualPx;
+          validCount++;
+        }
+      }
+
+      const rmse = validCount > 0 ? Math.sqrt(sumSqErr / validCount) : 99.9;
+      return { camPos, rmse, validCount };
+    }
+
+    /**
+     * Main Map-to-Frame Visual SLAM Execution Step
+     */
+    function runPnPVisualSLAM(frameData, dt) {
+      const data = frameData.data;
+
+      // Build current frame grayscale luminance array for fast optical flow patch correlation
+      const curGray = new Uint8Array(PROC_WIDTH * PROC_HEIGHT);
+      for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+        curGray[p] = (0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]) | 0;
+      }
+
+      const rotMat = getCameraRotationMatrix(state.pose);
+      const invRotMat = rotMat.clone().invert();
+      const currentCamOrigin = new THREE.Vector3(state.pose.x, state.pose.y, state.pose.z);
+
+      // 1. Track Existing 2D-3D Anchors via Patch Correlation + Gyro-Predicted Search Center
+      const survivingAnchors = [];
+      if (prevGrayFrame) {
+        for (let anchor of state.activeAnchors) {
+          // Predict pixel location using current gyro orientation & last camera position
+          const pred = projectWorldToPixel(anchor.worldPos, currentCamOrigin, invRotMat);
+          const searchCenterU = pred ? Math.round(0.6 * anchor.u + 0.4 * pred.u) : Math.round(anchor.u);
+          const searchCenterV = pred ? Math.round(0.6 * anchor.v + 0.4 * pred.v) : Math.round(anchor.v);
+
+          if (searchCenterU < 8 || searchCenterU >= PROC_WIDTH - 8 || searchCenterV < 8 || searchCenterV >= PROC_HEIGHT - 8) {
+            continue;
+          }
+
+          const origU = Math.round(anchor.u);
+          const origV = Math.round(anchor.v);
+          if (origU < 6 || origU >= PROC_WIDTH - 6 || origV < 6 || origV >= PROC_HEIGHT - 6) continue;
+
+          // 5x5 Sum of Absolute Differences (SAD) block matching within +-6px search window
+          let bestU = searchCenterU;
+          let bestV = searchCenterV;
+          let bestSAD = Infinity;
+
+          for (let sv = -6; sv <= 6; sv += 1) {
+            const candV = searchCenterV + sv;
+            if (candV < 5 || candV >= PROC_HEIGHT - 5) continue;
+
+            for (let su = -6; su <= 6; su += 1) {
+              const candU = searchCenterU + su;
+              if (candU < 5 || candU >= PROC_WIDTH - 5) continue;
+
+              let sad = 0;
+              for (let py = -2; py <= 2; py++) {
+                const rowPrev = (origV + py) * PROC_WIDTH + origU;
+                const rowCur = (candV + py) * PROC_WIDTH + candU;
+                for (let px = -2; px <= 2; px++) {
+                  sad += Math.abs(prevGrayFrame[rowPrev + px] - curGray[rowCur + px]);
+                }
+              }
+              if (sad < bestSAD) {
+                bestSAD = sad;
+                bestU = candU;
+                bestV = candV;
+              }
+            }
+          }
+
+          // Reject poor patch matches (average intensity error > 22)
+          if (bestSAD / 25.0 < 22.0) {
+            anchor.prevU = anchor.u;
+            anchor.prevV = anchor.v;
+            anchor.u = bestU;
+            anchor.v = bestV;
+            anchor.age++;
+            anchor.trail.push({ u: bestU, v: bestV });
+            if (anchor.trail.length > 8) anchor.trail.shift();
+
+            const cIdx = (bestV * PROC_WIDTH + bestU) * 4;
+            anchor.color = {
+              r: data[cIdx] / 255.0,
+              g: data[cIdx + 1] / 255.0,
+              b: data[cIdx + 2] / 255.0
+            };
+            survivingAnchors.push(anchor);
+          }
+        }
+      }
+
+      state.activeAnchors = survivingAnchors;
+
+      // 2. Solve Camera Translation via Map-to-Frame PnP Gauss-Newton
+      if (state.activeAnchors.length >= 5) {
+        const pnpResult = solvePnPTranslationGaussNewton(state.activeAnchors, currentCamOrigin, rotMat, invRotMat);
+        if (pnpResult && pnpResult.rmse < 24.0) {
+          // Smoothly apply solved translation with outlier jump guard
+          const jumpDist = pnpResult.camPos.distanceTo(currentCamOrigin);
+          if (jumpDist < 0.45) {
+            state.pose.x = state.pose.x * 0.25 + pnpResult.camPos.x * 0.75;
+            state.pose.y = state.pose.y * 0.25 + pnpResult.camPos.y * 0.75;
+            state.pose.z = state.pose.z * 0.25 + pnpResult.camPos.z * 0.75;
+            state.reprojectionRMSE = pnpResult.rmse;
+            state.lockedAnchorCount = pnpResult.validCount;
+            setStatus(`PnP 空間ロック中 (${pnpResult.validCount}点)`, 'bg-emerald-500');
+          }
+        } else {
+          setStatus('PnP 再ロック探索中...', 'bg-amber-500');
+        }
+      } else {
+        setStatus('基準3D空間アンカー構築中...', 'bg-sky-500');
+      }
+
+      const updatedCamOrigin = new THREE.Vector3(state.pose.x, state.pose.y, state.pose.z);
+
+      // 3. Refine Anchor Depths via Multi-View Stereo Ray-Ray Triangulation
+      for (let anchor of state.activeAnchors) {
+        const baseline = anchor.birthOrigin.distanceTo(updatedCamOrigin);
+        if (!anchor.isTriangulated && baseline >= 0.08 && anchor.age >= 4) {
+          const curRay = pixelToWorldRay(anchor.u, anchor.v, rotMat);
+          const parallaxAngle = anchor.birthRay.angleTo(curRay);
+
+          if (parallaxAngle >= (4.0 * Math.PI) / 180.0) {
+            const triPt = triangulateStereoRays(anchor.birthOrigin, anchor.birthRay, updatedCamOrigin, curRay);
+            if (triPt) {
+              anchor.worldPos.copy(triPt);
+              anchor.isTriangulated = true;
+
+              // Commit to persistent RGB point cloud if not duplicated
+              const isDup = state.triangulatedMapPoints.some(p => p.position.distanceTo(triPt) < 0.05);
+              if (!isDup && state.triangulatedMapPoints.length < 4000) {
+                state.triangulatedMapPoints.push({
+                  position: triPt.clone(),
+                  color: { ...anchor.color }
+                });
+              }
+            }
+          }
+        }
+      }
+
+      // 4. Dynamic Keyframe Map Expansion when Anchor Count Drops or Camera Moves Into New Scene
+      const movedFromKF = Math.hypot(
+        state.pose.x - state.lastKeyframePose.x,
+        state.pose.y - state.lastKeyframePose.y,
+        state.pose.z - state.lastKeyframePose.z
+      );
+      const rotatedFromKF = Math.abs(state.pose.yaw - state.lastKeyframePose.yaw) + Math.abs(state.pose.pitch - state.lastKeyframePose.pitch);
+
+      if (state.activeAnchors.length < 22 || movedFromKF > 0.25 || rotatedFromKF > 18.0) {
+        const freshCorners = extractShiTomasiCorners(data, 44);
+        let added = 0;
+
+        for (let c of freshCorners) {
+          const tooClose = state.activeAnchors.some(a => Math.hypot(a.u - c.u, a.v - c.v) < 15);
+          if (tooClose) continue;
+
+          const worldRay = pixelToWorldRay(c.u, c.v, rotMat);
+
+          // Check if a nearby triangulated 3D point already exists along this sightline (re-localization!)
+          let matchedExisting3D = null;
+          let bestRayDist = 0.08;
+          for (let mp of state.triangulatedMapPoints) {
+            const toPt = new THREE.Vector3().subVectors(mp.position, updatedCamOrigin);
+            const projLen = toPt.dot(worldRay);
+            if (projLen > 0.3 && projLen < 6.0) {
+              const perpDist = toPt.sub(worldRay.clone().multiplyScalar(projLen)).length();
+              if (perpDist < bestRayDist) {
+                bestRayDist = perpDist;
+                matchedExisting3D = mp.position.clone();
+              }
+            }
+          }
+
+          // Initialize with existing 3D map point or local depth prior (1.6m) until stereo baseline >= 8cm
+          const initialWorldPos = matchedExisting3D
+            ? matchedExisting3D
+            : updatedCamOrigin.clone().addScaledVector(worldRay, 1.6);
+
+          state.activeAnchors.push({
+            id: state.nextAnchorId++,
+            u: c.u,
+            v: c.v,
+            prevU: c.u,
+            prevV: c.v,
+            trail: [{ u: c.u, v: c.v }],
+            worldPos: initialWorldPos,
+            birthOrigin: updatedCamOrigin.clone(),
+            birthRay: worldRay,
+            isTriangulated: !!matchedExisting3D,
+            projU: c.u,
+            projV: c.v,
+            residualPx: 0,
+            color: { r: c.r, g: c.g, b: c.b },
+            age: 0
+          });
+          added++;
+          if (state.activeAnchors.length >= 42) break;
+        }
+
+        if (added > 0) {
+          state.keyframeCount++;
+          state.lastKeyframePose = {
+            x: state.pose.x,
+            y: state.pose.y,
+            z: state.pose.z,
+            yaw: state.pose.yaw,
+            pitch: state.pose.pitch
+          };
+        }
+      }
+
+      // 5. Update Odometry Distance, Trajectory & HUD Readouts
+      const stepDist = Math.hypot(
+        state.pose.x - state.lastPose.x,
+        state.pose.y - state.lastPose.y,
+        state.pose.z - state.lastPose.z
+      );
+      if (stepDist > 0.002 && stepDist < 0.5) {
+        state.totalDistance += stepDist;
+      }
+      state.lastPose = { x: state.pose.x, y: state.pose.y, z: state.pose.z };
+
+      if (
+        state.trajectory3D.length === 0 ||
+        Math.hypot(
+          state.pose.x - state.trajectory3D[state.trajectory3D.length - 1].x,
+          state.pose.y - state.trajectory3D[state.trajectory3D.length - 1].y,
+          state.pose.z - state.trajectory3D[state.trajectory3D.length - 1].z
+        ) > 0.025
+      ) {
+        state.trajectory3D.push({
+          x: state.pose.x,
+          y: state.pose.y,
+          z: state.pose.z,
+          timestamp: performance.now()
+        });
+      }
+
+      // Update UI Readouts
+      statAnchorsElem.textContent = state.activeAnchors.length;
+      statRmseElem.textContent = state.reprojectionRMSE.toFixed(1);
+      statTriangulatedElem.textContent = state.triangulatedMapPoints.length;
+
+      statSummaryAnchors.textContent = `${state.activeAnchors.length} 点`;
+      statSummaryKf.textContent = `${state.keyframeCount} KF`;
+      statSummaryPts.textContent = `${state.triangulatedMapPoints.length} 点`;
+      statSummaryRmse.textContent = `${state.reprojectionRMSE.toFixed(2)} px`;
+
+      posXElem.innerHTML = `${state.pose.x.toFixed(2)} <span class="text-[8px] font-normal text-slate-400">m</span>`;
+      posYElem.innerHTML = `${state.pose.y.toFixed(2)} <span class="text-[8px] font-normal text-slate-400">m</span>`;
+      posZElem.innerHTML = `${state.pose.z.toFixed(2)} <span class="text-[8px] font-normal text-slate-400">m</span>`;
+      statDistElem.textContent = `${state.totalDistance.toFixed(2)}m`;
+
+      prevGrayFrame = curGray;
+    }
+
+    // ==========================================
+    // 4. 2D PNP REPROJECTION OVERLAY & RADAR
+    // ==========================================
+    function render2DReprojectionOverlay() {
+      const width = overlayCanvas.width;
+      const height = overlayCanvas.height;
+      overlayCtx.clearRect(0, 0, width, height);
+
+      if (!state.showVectors) return;
+
+      const scaleX = width / PROC_WIDTH;
+      const scaleY = height / PROC_HEIGHT;
+
+      for (let a of state.activeAnchors) {
+        const obsX = a.u * scaleX;
+        const obsY = a.v * scaleY;
+        const projX = a.projU * scaleX;
+        const projY = a.projV * scaleY;
+
+        // 1. Optical Flow History Trail
+        if (a.trail.length > 1) {
+          overlayCtx.beginPath();
+          for (let i = 0; i < a.trail.length; i++) {
+            const tx = a.trail[i].u * scaleX;
+            const ty = a.trail[i].v * scaleY;
+            if (i === 0) overlayCtx.moveTo(tx, ty);
+            else overlayCtx.lineTo(tx, ty);
+          }
+          overlayCtx.strokeStyle = 'rgba(56, 189, 248, 0.55)';
+          overlayCtx.lineWidth = 1.5;
+          overlayCtx.stroke();
+        }
+
+        // 2. Reprojection Residual Error Line (Observed 2D -> Reprojected 3D Anchor)
+        overlayCtx.beginPath();
+        overlayCtx.moveTo(obsX, obsY);
+        overlayCtx.lineTo(projX, projY);
+        overlayCtx.strokeStyle = a.residualPx < 4.0 ? '#facc15' : '#fb7185';
+        overlayCtx.lineWidth = 1.5;
+        overlayCtx.stroke();
+
+        // 3. Reprojected 3D Anchor Crosshair (Magenta / Yellow)
+        overlayCtx.strokeStyle = a.isTriangulated ? '#e879f9' : '#facc15';
+        overlayCtx.lineWidth = 1.5;
+        const chSize = 5;
+        overlayCtx.beginPath();
+        overlayCtx.moveTo(projX - chSize, projY);
+        overlayCtx.lineTo(projX + chSize, projY);
+        overlayCtx.moveTo(projX, projY - chSize);
+        overlayCtx.lineTo(projX, projY + chSize);
+        overlayCtx.stroke();
+
+        // 4. Tracked Keypoint Dot (Emerald if 3D-triangulated, Cyan if local anchor)
+        overlayCtx.beginPath();
+        overlayCtx.arc(obsX, obsY, a.isTriangulated ? 4.5 : 3.5, 0, Math.PI * 2);
+        overlayCtx.fillStyle = a.isTriangulated ? '#10b981' : '#22d3ee';
+        overlayCtx.fill();
+        overlayCtx.strokeStyle = '#ffffff';
+        overlayCtx.lineWidth = 1;
+        overlayCtx.stroke();
+      }
+    }
+
+    function render2DRadarMap() {
+      const rw = radarCanvas.width;
+      const rh = radarCanvas.height;
+      const cx = rw * 0.5;
+      const cy = rh * 0.5;
+
+      radarCtx.clearRect(0, 0, rw, rh);
+
+      radarCtx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
+      radarCtx.lineWidth = 1;
+      radarCtx.beginPath();
+      radarCtx.arc(cx, cy, 20, 0, Math.PI * 2);
+      radarCtx.arc(cx, cy, 42, 0, Math.PI * 2);
+      radarCtx.moveTo(cx, 0); radarCtx.lineTo(cx, rh);
+      radarCtx.moveTo(0, cy); radarCtx.lineTo(rw, cy);
+      radarCtx.stroke();
+
+      // Plot 3D landmarks on XZ plane
+      radarCtx.fillStyle = 'rgba(16, 185, 129, 0.8)';
+      const scale = 14;
+      state.triangulatedMapPoints.slice(-140).forEach(pt => {
+        const rx = cx + pt.position.x * scale;
+        const ry = cy + pt.position.z * scale;
+        radarCtx.fillRect(rx - 1, ry - 1, 2, 2);
+      });
+
+      // Plot path
+      if (state.trajectory3D.length > 1) {
+        radarCtx.beginPath();
+        radarCtx.strokeStyle = '#38bdf8';
+        radarCtx.lineWidth = 2;
+        state.trajectory3D.slice(-100).forEach((p, idx) => {
+          const rx = cx + p.x * scale;
+          const ry = cy + p.z * scale;
+          if (idx === 0) radarCtx.moveTo(rx, ry);
+          else radarCtx.lineTo(rx, ry);
+        });
+        radarCtx.stroke();
+      }
+
+      // Self Heading Arrow
+      const selfX = cx + state.pose.x * scale;
+      const selfY = cy + state.pose.z * scale;
+      const yawRad = THREE.MathUtils.degToRad(state.pose.yaw);
+
+      radarCtx.save();
+      radarCtx.translate(selfX, selfY);
+      radarCtx.rotate(-yawRad);
+      radarCtx.fillStyle = '#f43f5e';
+      radarCtx.beginPath();
+      radarCtx.moveTo(0, -6);
+      radarCtx.lineTo(4.5, 5);
+      radarCtx.lineTo(-4.5, 5);
+      radarCtx.closePath();
+      radarCtx.fill();
+      radarCtx.restore();
+    }
+
+    // ==========================================
+    // 5. 3D MEASUREMENT TOOL
     // ==========================================
     function toggleMeasureMode() {
       state.isMeasuring = !state.isMeasuring;
       if (state.isMeasuring) {
-        btnMeasureMode.classList.add('bg-amber-500/30', 'text-amber-200');
+        iconMeasureBox.classList.add('bg-amber-500/30', 'border', 'border-amber-400');
         labelMeasureBtn.textContent = "計測中";
         measureActivePanel.classList.remove('hidden');
         measureInstructionsBadge.classList.remove('hidden');
 
-        if (state.activeMainView === 'camera') {
-          toggleMainView();
+        if (state.viewMode === 'camera') {
+          state.viewMode = '3d';
+          updateViewportLayout();
         }
       } else {
-        btnMeasureMode.classList.remove('bg-amber-500/30', 'text-amber-200');
-        labelMeasureBtn.textContent = "計測OFF";
+        iconMeasureBox.classList.remove('bg-amber-500/30', 'border', 'border-amber-400');
+        labelMeasureBtn.textContent = "3D計測";
         measureActivePanel.classList.add('hidden');
         measureInstructionsBadge.classList.add('hidden');
+        if (snapCursorMesh) snapCursorMesh.visible = false;
       }
     }
 
-    function handle3DTapForMeasurement(screenX, screenY) {
-      if (!state.isMeasuring || !camera3D || state.triangulatedMapPoints.length === 0) return;
+    function handle3DTapForMeasurement(clientX, clientY) {
+      if (!state.isMeasuring || !camera3D || !renderer3D) return;
 
-      mouseRaycast.x = (screenX / window.innerWidth) * 2 - 1;
-      mouseRaycast.y = -(screenY / window.innerHeight) * 2 + 1;
+      const rect = renderer3D.domElement.getBoundingClientRect();
+      if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) return;
 
+      mouseRaycast.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+      mouseRaycast.y = -((clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(mouseRaycast, camera3D);
 
-      // Find closest triangulated 3D point to the tapped ray
-      let closestPoint = null;
-      let minRayDistance = 0.35; // Hit tolerance in meters
+      let closestPt = null;
+      let minRayDist = 0.35; // 35cm tap snap tolerance
 
-      state.triangulatedMapPoints.forEach(p => {
-        const distToRay = raycaster.ray.distanceToPoint(p.position);
-        if (distToRay < minRayDistance) {
-          minRayDistance = distToRay;
-          closestPoint = p.position.clone();
+      // Check triangulated 3D map points first, then active anchors
+      for (let mp of state.triangulatedMapPoints) {
+        const d = raycaster.ray.distanceToPoint(mp.position);
+        if (d < minRayDist) {
+          minRayDist = d;
+          closestPt = mp.position.clone();
         }
-      });
-
-      if (closestPoint) {
-        addPointToMeasurement(closestPoint);
       }
-    }
 
-    function addCurrentPositionAsMeasurePoint() {
-      const currentPos = new THREE.Vector3(state.pose.x, state.pose.y, state.pose.z);
-      addPointToMeasurement(currentPos);
+      if (!closestPt) {
+        for (let a of state.activeAnchors) {
+          const d = raycaster.ray.distanceToPoint(a.worldPos);
+          if (d < minRayDist) {
+            minRayDist = d;
+            closestPt = a.worldPos.clone();
+          }
+        }
+      }
+
+      if (closestPt) {
+        if (snapCursorMesh) {
+          snapCursorMesh.position.copy(closestPt);
+          snapCursorMesh.visible = true;
+        }
+        addPointToMeasurement(closestPt);
+      }
     }
 
     function addPointToMeasurement(vec3) {
@@ -910,29 +1584,25 @@
         state.measureStartPoint = vec3.clone();
         measureStepText.textContent = "終点待ち";
         measureDistResult.textContent = "-- cm";
-
-        createMeasurePointMarker(state.measureStartPoint, 0x38bdf8);
+        createMeasureSphere(state.measureStartPoint, 0x38bdf8);
       } else {
         state.measureEndPoint = vec3.clone();
-        createMeasurePointMarker(state.measureEndPoint, 0xf59e0b);
+        createMeasureSphere(state.measureEndPoint, 0xf59e0b);
 
-        // Compute 3D Distance in meters
         const dist = state.measureStartPoint.distanceTo(state.measureEndPoint);
-        const distCm = (dist * 100).toFixed(1);
-        const distM = dist.toFixed(3);
-        measureDistResult.textContent = dist < 1.0 ? `${distCm} cm` : `${distM} m`;
-        measureStepText.textContent = "計測完了";
+        const distLabel = dist < 1.0 ? `${(dist * 100).toFixed(1)} cm` : `${dist.toFixed(3)} m`;
+        measureDistResult.textContent = distLabel;
+        measureStepText.textContent = "完了";
 
-        create3DMeasurementVisual(state.measureStartPoint, state.measureEndPoint, dist);
+        create3DMeasurementLineAndLabel(state.measureStartPoint, state.measureEndPoint, distLabel);
 
-        const record = {
+        state.measureRecords.push({
           id: Date.now(),
           p1: state.measureStartPoint.clone(),
           p2: state.measureEndPoint.clone(),
-          dist: dist,
-          distStr: dist < 1.0 ? `${distCm} cm` : `${distM} m`
-        };
-        state.measureRecords.push(record);
+          distanceMeter: dist,
+          label: distLabel
+        });
         updateMeasurementListUI();
 
         state.measureStartPoint = null;
@@ -940,51 +1610,51 @@
       }
     }
 
-    function createMeasurePointMarker(pos, colorHex) {
-      const markerGeo = new THREE.SphereGeometry(0.045, 12, 12);
-      const markerMat = new THREE.MeshBasicMaterial({ color: colorHex });
-      const marker = new THREE.Mesh(markerGeo, markerMat);
-      marker.position.copy(pos);
-      measurementGroup.add(marker);
+    function createMeasureSphere(pos, colorHex) {
+      const geo = new THREE.SphereGeometry(0.045, 16, 16);
+      const mat = new THREE.MeshBasicMaterial({ color: colorHex });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.copy(pos);
+      measurementGroup.add(mesh);
     }
 
-    function create3DMeasurementVisual(p1, p2, dist) {
+    function create3DMeasurementLineAndLabel(p1, p2, labelStr) {
       const lineGeo = new THREE.BufferGeometry().setFromPoints([p1, p2]);
       const lineMat = new THREE.LineBasicMaterial({ color: 0xf59e0b, linewidth: 3 });
       const line = new THREE.Line(lineGeo, lineMat);
       measurementGroup.add(line);
 
-      const midPoint = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
-      const distStr = dist < 1.0 ? `${(dist * 100).toFixed(1)}cm` : `${dist.toFixed(2)}m`;
-      const labelSprite = makeTextSprite(distStr);
-      labelSprite.position.copy(midPoint);
-      labelSprite.position.y += 0.07;
-      measurementGroup.add(labelSprite);
+      const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+      const sprite = createFloatingMetricSprite(labelStr);
+      sprite.position.copy(mid);
+      sprite.position.y += 0.08;
+      measurementGroup.add(sprite);
     }
 
-    function makeTextSprite(message) {
+    function createFloatingMetricSprite(text) {
       const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
       canvas.width = 256;
       canvas.height = 80;
+      const ctx = canvas.getContext('2d');
 
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
-      ctx.roundRect(4, 4, 248, 72, 16);
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+      ctx.beginPath();
+      ctx.roundRect(6, 6, 244, 68, 16);
       ctx.fill();
       ctx.lineWidth = 3;
       ctx.strokeStyle = '#f59e0b';
       ctx.stroke();
 
-      ctx.font = 'bold 36px monospace';
+      ctx.font = 'bold 34px monospace';
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(message, 128, 40);
+      ctx.fillText(text, 128, 40);
 
-      const texture = new THREE.CanvasTexture(canvas);
-      const spriteMaterial = new THREE.SpriteMaterial({ map: texture, depthTest: false });
-      const sprite = new THREE.Sprite(spriteMaterial);
-      sprite.scale.set(0.45, 0.14, 1.0);
+      const tex = new THREE.CanvasTexture(canvas);
+      const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false });
+      const sprite = new THREE.Sprite(mat);
+      sprite.scale.set(0.46, 0.14, 1.0);
       return sprite;
     }
 
@@ -993,6 +1663,7 @@
       state.measureEndPoint = null;
       measureStepText.textContent = "始点待ち";
       measureDistResult.textContent = "-- cm";
+      if (snapCursorMesh) snapCursorMesh.visible = false;
     }
 
     function clearAllMeasurements() {
@@ -1007,572 +1678,247 @@
 
     function updateMeasurementListUI() {
       if (state.measureRecords.length === 0) {
-        measureListContainer.innerHTML = '<div class="text-[10px] text-slate-400 text-center py-3">計測データはありません。「計測」モードで2点をタップしてください。</div>';
+        measureListContainer.innerHTML = '<div class="text-[10px] text-slate-400 text-center py-3">計測履歴はありません。「3D計測」モードで点群を2点タップしてください。</div>';
         return;
       }
-
-      measureListContainer.innerHTML = state.measureRecords.map((m, idx) => `
-        <div class="flex items-center justify-between p-2 rounded-xl bg-slate-900 border border-amber-500/30 text-[10px] font-mono">
-          <span class="text-slate-300">#${idx + 1} 区間距離:</span>
-          <span class="font-extrabold text-amber-400 text-xs">${m.distStr}</span>
+      measureListContainer.innerHTML = state.measureRecords.map((r, i) => `
+        <div class="flex items-center justify-between p-2 rounded-xl bg-slate-900/90 border border-amber-500/30 text-[10px] font-mono">
+          <span class="text-slate-300">#${i + 1} 2点間距離:</span>
+          <span class="font-extrabold text-amber-400 text-xs">${r.label}</span>
         </div>
       `).join('');
     }
 
     // ==========================================
-    // 4. OVERHAULED SLAM & RIGOROUS DEPTH TRIANGULATION
+    // 6. THREE.JS 3D SPATIAL RENDERER
     // ==========================================
-    function toggleSLAM() {
-      ensureVideoPlaying();
-      state.isTracking = !state.isTracking;
+    function initThreeJS() {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
 
-      if (state.isTracking) {
-        btnStartCircle.className = "w-12 h-12 rounded-full bg-rose-600 hover:bg-rose-500 flex items-center justify-center text-white shadow-lg shadow-rose-600/40 border-2 border-white/20";
-        btnStartIcon.className = "fa-solid fa-stop text-lg";
-        btnStartText.textContent = "停止";
-        setStatus('空間マッピング中 (3D復元)', 'bg-emerald-500');
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x050811);
 
-        state.lastFrameTime = performance.now();
-        requestAnimationFrame(processFrameLoop);
-      } else {
-        btnStartCircle.className = "w-12 h-12 rounded-full bg-sky-600 hover:bg-sky-500 flex items-center justify-center text-white shadow-lg shadow-sky-600/40 border-2 border-white/20";
-        btnStartIcon.className = "fa-solid fa-play text-lg ml-0.5";
-        btnStartText.textContent = "SLAM開始";
-        setStatus('一時停止中', 'bg-amber-500');
-      }
+      camera3D = new THREE.PerspectiveCamera(60, width / height, 0.05, 100);
+      camera3D.position.set(0, 1.8, 3.6);
+
+      raycaster = new THREE.Raycaster();
+      mouseRaycast = new THREE.Vector2();
+
+      renderer3D = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+      renderer3D.setSize(width, height);
+      renderer3D.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      threeCanvasContainer.appendChild(renderer3D.domElement);
+
+      scene.add(new THREE.AmbientLight(0xffffff, 0.95));
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
+      dirLight.position.set(4, 10, 6);
+      scene.add(dirLight);
+
+      // Ground Grid (+Y is Up, Ground Floor at Y = -0.8m)
+      const grid = new THREE.GridHelper(20, 20, 0x38bdf8, 0x1e293b);
+      grid.position.y = -0.8;
+      scene.add(grid);
+
+      trajectoryMeshGroup = new THREE.Group();
+      scene.add(trajectoryMeshGroup);
+
+      pillarsGroup = new THREE.Group();
+      scene.add(pillarsGroup);
+
+      measurementGroup = new THREE.Group();
+      scene.add(measurementGroup);
+
+      // Snap-to-nearest Target Sphere
+      const snapGeo = new THREE.SphereGeometry(0.06, 16, 16);
+      const snapMat = new THREE.MeshBasicMaterial({ color: 0xfacc15, wireframe: true });
+      snapCursorMesh = new THREE.Mesh(snapGeo, snapMat);
+      snapCursorMesh.visible = false;
+      scene.add(snapCursorMesh);
+
+      // Origin Start Marker
+      startMarkerMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(0.09, 16, 16),
+        new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7 })
+      );
+      scene.add(startMarkerMesh);
+
+      // Current Position Marker
+      currentMarkerMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(0.065, 16, 16),
+        new THREE.MeshStandardMaterial({ color: 0xf43f5e, emissive: 0xe11d48 })
+      );
+      scene.add(currentMarkerMesh);
+
+      // Smartphone 3D Pose Avatar + Frustum + Heading Arrow
+      cameraAvatarGroup = new THREE.Group();
+
+      const phoneBody = new THREE.Mesh(
+        new THREE.BoxGeometry(0.20, 0.40, 0.025),
+        new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.7, roughness: 0.25 })
+      );
+      cameraAvatarGroup.add(phoneBody);
+
+      const phoneScreen = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.18, 0.36),
+        new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide })
+      );
+      phoneScreen.position.z = 0.014;
+      cameraAvatarGroup.add(phoneScreen);
+
+      // Camera Field-Of-View Frustum Cone pointing along -Z
+      const frustumGeo = new THREE.ConeGeometry(0.42, 0.55, 4);
+      frustumGeo.rotateX(-Math.PI / 2);
+      const frustumMesh = new THREE.Mesh(
+        frustumGeo,
+        new THREE.MeshBasicMaterial({ color: 0x38bdf8, wireframe: true, transparent: true, opacity: 0.65 })
+      );
+      frustumMesh.position.z = -0.28;
+      cameraAvatarGroup.add(frustumMesh);
+
+      // Forward Heading Arrow (-Z)
+      const arrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 0, 0), 0.58, 0x10b981, 0.14, 0.09);
+      cameraAvatarGroup.add(arrow);
+
+      // Local RGB Axes
+      cameraAvatarGroup.add(new THREE.AxesHelper(0.32));
+      scene.add(cameraAvatarGroup);
+
+      // Real-Color RGB 3D Point Cloud
+      pointCloudGeometry = new THREE.BufferGeometry();
+      const pointMat = new THREE.PointsMaterial({
+        vertexColors: true,
+        size: state.pointSize,
+        transparent: true,
+        opacity: 0.95,
+        sizeAttenuation: true
+      });
+      pointCloudParticles = new THREE.Points(pointCloudGeometry, pointMat);
+      scene.add(pointCloudParticles);
     }
 
-    function processFrameLoop() {
-      if (!state.isTracking) return;
+    function update3DScene() {
+      if (!scene || !renderer3D) return;
 
-      const now = performance.now();
-      const deltaTime = (now - state.lastFrameTime) / 1000;
-      state.lastFrameTime = now;
-
-      const pw = procCanvas.width;
-      const ph = procCanvas.height;
-      
-      if (videoElem.readyState >= 2) {
-        procCtx.drawImage(videoElem, 0, 0, pw, ph);
-        const frameData = procCtx.getImageData(0, 0, pw, ph);
-        updateVisualInertialOdometry(frameData, pw, ph, deltaTime);
-      }
-
-      render2DTrackingOverlay();
-      render2DRadarMap();
-      renderTrajectoryCanvases();
-      update3DScene();
-
-      // FPS update
-      state.frameCount++;
-      if (now - state.lastFpsUpdate >= 500) {
-        state.fps = Math.round((state.frameCount * 1000) / (now - state.lastFpsUpdate));
-        statFps.textContent = state.fps;
-        state.frameCount = 0;
-        state.lastFpsUpdate = now;
-      }
-
-      requestAnimationFrame(processFrameLoop);
-    }
-
-    /**
-     * SHI-TOMASI / FAST SHARP CORNER EXTRACTION
-     */
-    function extractSharpCornerEndpoints(data, width, height, maxTotal = 45) {
-      const corners = [];
-      const gridRows = 5;
-      const gridCols = 6;
-      const cellW = Math.floor(width / gridCols);
-      const cellH = Math.floor(height / gridRows);
-
-      for (let r = 0; r < gridRows; r++) {
-        for (let c = 0; c < gridCols; c++) {
-          let bestScore = -Infinity;
-          let bestPt = null;
-
-          const startX = c * cellW + 8;
-          const endX = (c + 1) * cellW - 8;
-          const startY = r * cellH + 8;
-          const endY = (r + 1) * cellH - 8;
-
-          for (let y = startY; y < endY; y += 4) {
-            for (let x = startX; x < endX; x += 4) {
-              const centerIdx = (y * width + x) * 4;
-              const centerLum = getLuminance(data, centerIdx);
-
-              const topLum = getLuminance(data, ((y - 3) * width + x) * 4);
-              const rightLum = getLuminance(data, (y * width + (x + 3)) * 4);
-              const btmLum = getLuminance(data, ((y + 3) * width + x) * 4);
-              const leftLum = getLuminance(data, (y * width + (x - 3)) * 4);
-
-              const contrastThreshold = 28;
-              let bright = 0, dark = 0;
-              [topLum, rightLum, btmLum, leftLum].forEach(l => {
-                if (l > centerLum + contrastThreshold) bright++;
-                if (l < centerLum - contrastThreshold) dark++;
-              });
-
-              if (bright < 2 && dark < 2) continue;
-
-              let Ixx = 0, Iyy = 0, Ixy = 0;
-              for (let dy = -1; dy <= 1; dy++) {
-                for (let dx = -1; dx <= 1; dx++) {
-                  const idxX1 = ((y + dy) * width + (x + dx + 1)) * 4;
-                  const idxX0 = ((y + dy) * width + (x + dx - 1)) * 4;
-                  const idxY1 = ((y + dy + 1) * width + (x + dx)) * 4;
-                  const idxY0 = ((y + dy - 1) * width + (x + dx)) * 4;
-
-                  const gx = (getLuminance(data, idxX1) - getLuminance(data, idxX0)) * 0.5;
-                  const gy = (getLuminance(data, idxY1) - getLuminance(data, idxY0)) * 0.5;
-
-                  Ixx += gx * gx;
-                  Iyy += gy * gy;
-                  Ixy += gx * gy;
-                }
-              }
-
-              const trace = Ixx + Iyy;
-              const detTerm = Math.sqrt(Math.max(0, (Ixx - Iyy) * (Ixx - Iyy) + 4 * Ixy * Ixy));
-              const lambdaMin = (trace - detTerm) * 0.5;
-
-              if (lambdaMin > 180 && lambdaMin > bestScore) {
-                bestScore = lambdaMin;
-                bestPt = { 
-                  x, y, 
-                  score: lambdaMin,
-                  r: data[centerIdx] / 255.0,
-                  g: data[centerIdx + 1] / 255.0,
-                  b: data[centerIdx + 2] / 255.0
-                };
-              }
-            }
-          }
-
-          if (bestPt) {
-            corners.push(bestPt);
-            if (corners.length >= maxTotal) return corners;
-          }
-        }
-      }
-      return corners;
-    }
-
-    /**
-     * ACCURATE PINHOLE CAMERA PROJECTION
-     * iPhone horizontal Field Of View ≈ 68 degrees (focal ≈ width / (2 * tan(34°)))
-     */
-    function getNormalizedRayInWorld(px, py, width, height, pose) {
-      const hFovRad = 68 * (Math.PI / 180);
-      const focal = (width * 0.5) / Math.tan(hFovRad * 0.5);
-
-      const rayCam = new THREE.Vector3(
-        (px - width * 0.5) / focal,
-        -(py - height * 0.5) / focal, // Y-axis inverted for Three.js (+Y is UP)
-        -1.0                          // Forward along -Z
-      ).normalize();
-
+      cameraAvatarGroup.position.set(state.pose.x, state.pose.y, state.pose.z);
       const euler = new THREE.Euler(
-        THREE.MathUtils.degToRad(pose.pitch),
-        THREE.MathUtils.degToRad(pose.yaw),
-        THREE.MathUtils.degToRad(pose.roll),
+        THREE.MathUtils.degToRad(state.pose.pitch),
+        THREE.MathUtils.degToRad(state.pose.yaw),
+        THREE.MathUtils.degToRad(state.pose.roll),
         'YXZ'
       );
-      rayCam.applyEuler(euler);
-      return rayCam;
-    }
+      cameraAvatarGroup.quaternion.setFromEuler(euler);
+      currentMarkerMesh.position.set(state.pose.x, state.pose.y, state.pose.z);
 
-    /**
-     * ROBUST MIDPOINT 3D TRIANGULATION
-     * Solves 2x2 linear system for closest approach between 2 rays with outlier rejection
-     */
-    function triangulateTwoRays(orig0, ray0, orig1, ray1) {
-      const w0 = new THREE.Vector3().subVectors(orig0, orig1);
-      const a = ray0.dot(ray0); // 1.0 (unit vector)
-      const b = ray0.dot(ray1);
-      const c = ray1.dot(ray1); // 1.0 (unit vector)
-      const d = ray0.dot(w0);
-      const e = ray1.dot(w0);
-
-      const denom = a * c - b * b; // 1 - (ray0 . ray1)^2 = sin^2(theta)
-      // Reject parallel or almost collinear rays (parallax angle < 4.0 degrees)
-      if (Math.abs(denom) < 0.005) return null;
-
-      const s = (b * e - c * d) / denom;
-      const t = (a * e - b * d) / denom;
-
-      // Depth sanity checks: must be in front of both cameras and within realistic room scale
-      if (s < 0.3 || t < 0.3) return null;
-      if (s > 6.0 || t > 6.0) return null;
-
-      const p0 = new THREE.Vector3().copy(orig0).addScaledVector(ray0, s);
-      const p1 = new THREE.Vector3().copy(orig1).addScaledVector(ray1, t);
-      
-      // Strict spatial ray miss distance (residual must be < 5cm to eliminate false depths)
-      const distanceResidual = p0.distanceTo(p1);
-      if (distanceResidual > 0.05) return null;
-
-      return new THREE.Vector3().addVectors(p0, p1).multiplyScalar(0.5);
-    }
-
-    /**
-     * VIO SLAM & SPATIAL LANDMARK ACCUMULATION
-     */
-    function updateVisualInertialOdometry(imgData, width, height, dt) {
-      const data = imgData.data;
-      const currentCamOrigin = new THREE.Vector3(state.pose.x, state.pose.y, state.pose.z);
-
-      // 1. Feature Replenishment
-      if (state.trackedFeatures.length < 40) {
-        const candidateCorners = extractSharpCornerEndpoints(data, width, height, 40);
-        for (let corner of candidateCorners) {
-          const isOccupied = state.trackedFeatures.some(f => Math.hypot(f.x - corner.x, f.y - corner.y) < 16);
-          if (!isOccupied) {
-            const birthRay = getNormalizedRayInWorld(corner.x, corner.y, width, height, state.pose);
-            
-            state.trackedFeatures.push({
-              x: corner.x,
-              y: corner.y,
-              birthX: corner.x,
-              birthY: corner.y,
-              dx: 0,
-              dy: 0,
-              age: 0,
-              color: { r: corner.r, g: corner.g, b: corner.b },
-              birthPose: { ...state.pose },
-              birthOrigin: currentCamOrigin.clone(),
-              birthRay: birthRay,
-              isTriangulated: false
-            });
-          }
-        }
-      }
-
-      // 2. Optical Flow & Gyro De-rotation
-      const updatedFeatures = [];
-      const residualTranslations = [];
-
-      const focalPixel = 220.0;
-      const rotRadYaw = (state.sensor.dAlpha * Math.PI) / 180.0;
-      const rotRadPitch = (state.sensor.dBeta * Math.PI) / 180.0;
-
-      const expectedDxRot = -rotRadYaw * focalPixel;
-      const expectedDyRot = rotRadPitch * focalPixel;
-
-      for (let feat of state.trackedFeatures) {
-        const px = Math.floor(feat.x);
-        const py = Math.floor(feat.y);
-
-        if (px < 5 || px >= width - 5 || py < 5 || py >= height - 5) continue;
-
-        let bestShiftX = 0, bestShiftY = 0, minDiff = Infinity;
-        const currentLum = getLuminance(data, (py * width + px) * 4);
-
-        for (let sy = -2; sy <= 2; sy++) {
-          for (let sx = -2; sx <= 2; sx++) {
-            const idx = ((py + sy) * width + (px + sx)) * 4;
-            const diff = Math.abs(currentLum - getLuminance(data, idx));
-            if (diff < minDiff) {
-              minDiff = diff;
-              bestShiftX = sx;
-              bestShiftY = sy;
-            }
-          }
-        }
-
-        feat.dx = feat.dx * 0.5 + bestShiftX * 0.5;
-        feat.dy = feat.dy * 0.5 + bestShiftY * 0.5;
-        feat.x += feat.dx;
-        feat.y += feat.dy;
-        feat.age++;
-
-        const curPx = Math.min(width - 1, Math.max(0, Math.floor(feat.x)));
-        const curPy = Math.min(height - 1, Math.max(0, Math.floor(feat.y)));
-        const curIdx = (curPy * width + curPx) * 4;
-        feat.color = {
-          r: data[curIdx] / 255.0,
-          g: data[curIdx + 1] / 255.0,
-          b: data[curIdx + 2] / 255.0
-        };
-
-        const residualX = feat.dx - expectedDxRot;
-        const residualY = feat.dy - expectedDyRot;
-        residualTranslations.push({ rx: residualX, ry: residualY });
-
-        // 3. Multi-View Triangulation: Require at least 8cm of baseline and 4° parallax
-        const baseline = feat.birthOrigin.distanceTo(currentCamOrigin);
-        if (!feat.isTriangulated && baseline >= 0.08 && feat.age > 5) {
-          const currentRay = getNormalizedRayInWorld(feat.x, feat.y, width, height, state.pose);
-          const angleDiff = feat.birthRay.angleTo(currentRay);
-
-          if (angleDiff >= (4.0 * Math.PI / 180)) {
-            const triangulatedPoint = triangulateTwoRays(feat.birthOrigin, feat.birthRay, currentCamOrigin, currentRay);
-            if (triangulatedPoint) {
-              feat.isTriangulated = true;
-
-              const exists = state.triangulatedMapPoints.some(p => p.position.distanceTo(triangulatedPoint) < 0.06);
-              if (!exists && state.triangulatedMapPoints.length < 3500) {
-                state.triangulatedMapPoints.push({
-                  position: triangulatedPoint,
-                  color: { ...feat.color }
-                });
-              }
-            }
-          }
-        }
-
-        if (feat.x > 4 && feat.x < width - 4 && feat.y > 4 && feat.y < height - 4 && feat.age < 180) {
-          updatedFeatures.push(feat);
-        }
-      }
-
-      state.trackedFeatures = updatedFeatures;
-      statFeatures.textContent = state.trackedFeatures.length;
-      statTriangulated.textContent = state.triangulatedMapPoints.length;
-      statSummaryPts.textContent = `${state.triangulatedMapPoints.length} 点`;
-
-      // 4. Update Translational Odometry
-      if (residualTranslations.length > 3) {
-        const sortedRx = residualTranslations.map(p => p.rx).sort((a, b) => a - b);
-        const sortedRy = residualTranslations.map(p => p.ry).sort((a, b) => a - b);
-        const midIdx = Math.floor(sortedRx.length / 2);
-
-        let medianResidualX = sortedRx[midIdx];
-        let medianResidualY = sortedRy[midIdx];
-
-        if (Math.abs(medianResidualX) < 0.25) medianResidualX = 0;
-        if (Math.abs(medianResidualY) < 0.25) medianResidualY = 0;
-
-        const translationScale = 0.012;
-        const deltaTransX = -medianResidualX * translationScale;
-        const deltaTransY = -medianResidualY * translationScale; // +Y is UP
-        const deltaTransZ = -(Math.abs(medianResidualX) + Math.abs(medianResidualY)) * 0.001;
-
-        state.pose.x += deltaTransX;
-        state.pose.y += deltaTransY;
-        state.pose.z += deltaTransZ;
-
-        const stepDist = Math.hypot(
-          state.pose.x - state.lastPose.x,
-          state.pose.y - state.lastPose.y,
-          state.pose.z - state.lastPose.z
-        );
-
-        if (stepDist > 0.001) {
-          state.totalDistance += stepDist;
-          state.currentSpeed = dt > 0 ? (stepDist / dt) : 0;
-        } else {
-          state.currentSpeed *= 0.8;
-        }
-
-        state.lastPose = { x: state.pose.x, y: state.pose.y, z: state.pose.z };
-      }
-
-      state.sensor.dAlpha = 0;
-      state.sensor.dBeta = 0;
-      state.sensor.dGamma = 0;
-
-      // Telemetry UI
-      posXElem.textContent = state.pose.x.toFixed(2);
-      posYElem.textContent = state.pose.y.toFixed(2);
-      posZElem.textContent = state.pose.z.toFixed(2);
-      statDistElem.textContent = `${state.totalDistance.toFixed(2)}m`;
-      statSpeedElem.textContent = `${state.currentSpeed.toFixed(2)}m/s`;
-
-      const nowTs = performance.now();
-      const currentPosNode = {
-        x: state.pose.x,
-        y: state.pose.y,
-        z: state.pose.z,
-        timestamp: nowTs,
-        speed: state.currentSpeed
-      };
-
-      if (state.trajectory3D.length === 0 || 
-          Math.hypot(currentPosNode.x - state.trajectory3D[state.trajectory3D.length - 1].x,
-                     currentPosNode.z - state.trajectory3D[state.trajectory3D.length - 1].z) > 0.02) {
-        state.trajectory3D.push(currentPosNode);
-      }
-    }
-
-    function getLuminance(data, index) {
-      return 0.299 * data[index] + 0.587 * data[index + 1] + 0.114 * data[index + 2];
-    }
-
-    // ==========================================
-    // 5. 2D OVERLAYS & TRAJECTORY VIEWS
-    // ==========================================
-    function render2DTrackingOverlay() {
-      const width = overlayCanvas.width;
-      const height = overlayCanvas.height;
-      const scaleX = width / procCanvas.width;
-      const scaleY = height / procCanvas.height;
-
-      overlayCtx.clearRect(0, 0, width, height);
-
-      if (!state.showVectors) return;
-
-      state.trackedFeatures.forEach(feat => {
-        const sx = feat.x * scaleX;
-        const sy = feat.y * scaleY;
-
-        overlayCtx.beginPath();
-        overlayCtx.moveTo(sx, sy);
-        overlayCtx.lineTo(sx + feat.dx * scaleX * 6, sy + feat.dy * scaleY * 6);
-        overlayCtx.strokeStyle = feat.isTriangulated ? '#10b981' : '#facc15';
-        overlayCtx.lineWidth = 2.0;
-        overlayCtx.stroke();
-
-        const r255 = Math.round(feat.color.r * 255);
-        const g255 = Math.round(feat.color.g * 255);
-        const b255 = Math.round(feat.color.b * 255);
-
-        overlayCtx.beginPath();
-        overlayCtx.arc(sx, sy, feat.isTriangulated ? 5.5 : 4.0, 0, Math.PI * 2);
-        overlayCtx.fillStyle = `rgb(${r255}, ${g255}, ${b255})`;
-        overlayCtx.fill();
-        overlayCtx.strokeStyle = feat.isTriangulated ? '#10b981' : '#ffffff';
-        overlayCtx.lineWidth = 1.5;
-        overlayCtx.stroke();
-      });
-    }
-
-    function render2DRadarMap() {
-      const rw = radarCanvas.width;
-      const rh = radarCanvas.height;
-      const cx = rw / 2;
-      const cy = rh / 2;
-
-      radarCtx.clearRect(0, 0, rw, rh);
-
-      radarCtx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
-      radarCtx.lineWidth = 1;
-      radarCtx.beginPath();
-      radarCtx.arc(cx, cy, 20, 0, Math.PI * 2);
-      radarCtx.arc(cx, cy, 40, 0, Math.PI * 2);
-      radarCtx.stroke();
-
-      radarCtx.beginPath();
-      radarCtx.moveTo(cx, 0); radarCtx.lineTo(cx, rh);
-      radarCtx.moveTo(0, cy); radarCtx.lineTo(rw, cy);
-      radarCtx.stroke();
-
-      radarCtx.fillStyle = '#10b981';
-      state.triangulatedMapPoints.slice(-100).forEach(p => {
-        const rx = cx + p.position.x * 12;
-        const ry = cy + p.position.z * 12;
-        radarCtx.fillRect(rx - 1, ry - 1, 2, 2);
-      });
-
+      // Update Volumetric Ribbon Trajectory & Floor Drop-Lines
       if (state.trajectory3D.length > 1) {
-        radarCtx.beginPath();
-        radarCtx.strokeStyle = '#38bdf8';
-        radarCtx.lineWidth = 2;
-        state.trajectory3D.slice(-80).forEach((p, idx) => {
-          const rx = cx + p.x * 12;
-          const ry = cy + p.z * 12;
-          if (idx === 0) radarCtx.moveTo(rx, ry);
-          else radarCtx.lineTo(rx, ry);
-        });
-        radarCtx.stroke();
+        while (trajectoryMeshGroup.children.length > 0) {
+          const obj = trajectoryMeshGroup.children.pop();
+          if (obj.geometry) obj.geometry.dispose();
+        }
+        while (pillarsGroup.children.length > 0) {
+          const obj = pillarsGroup.children.pop();
+          if (obj.geometry) obj.geometry.dispose();
+        }
+
+        const pts = state.trajectory3D.map(p => new THREE.Vector3(p.x, p.y, p.z));
+        startMarkerMesh.position.copy(pts[0]);
+
+        const curve = new THREE.CatmullRomCurve3(pts);
+        const segments = Math.min(pts.length * 3, 280);
+        const tubeGeo = new THREE.TubeGeometry(curve, segments, 0.028, 8, false);
+
+        const vCount = tubeGeo.attributes.position.count;
+        const tubeColors = new Float32Array(vCount * 3);
+        const cObj = new THREE.Color();
+
+        for (let i = 0; i < vCount; i++) {
+          const ratio = i / vCount;
+          const yVal = pts[Math.floor(ratio * (pts.length - 1))].y;
+          const hue = Math.min(0.65, Math.max(0.05, 0.52 - yVal * 0.28));
+          cObj.setHSL(hue, 0.9, 0.55);
+          tubeColors[i * 3] = cObj.r;
+          tubeColors[i * 3 + 1] = cObj.g;
+          tubeColors[i * 3 + 2] = cObj.b;
+        }
+        tubeGeo.setAttribute('color', new THREE.BufferAttribute(tubeColors, 3));
+
+        const tubeMesh = new THREE.Mesh(
+          tubeGeo,
+          new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35 })
+        );
+        trajectoryMeshGroup.add(tubeMesh);
+
+        // Drop lines to ground plane (Y = -0.8)
+        const step = Math.max(1, Math.floor(pts.length / 24));
+        for (let i = 0; i < pts.length; i += step) {
+          const p = pts[i];
+          const pGeo = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(p.x, p.y, p.z),
+            new THREE.Vector3(p.x, -0.8, p.z)
+          ]);
+          const line = new THREE.Line(
+            pGeo,
+            new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.35 })
+          );
+          pillarsGroup.add(line);
+        }
       }
 
-      const selfRx = cx + state.pose.x * 12;
-      const selfRy = cy + state.pose.z * 12;
+      // Combine Persistent Triangulated Points + Active 3D Anchors into RGB Point Cloud
+      const totalPts = state.triangulatedMapPoints.length + state.activeAnchors.length;
+      if (totalPts > 0) {
+        const positions = new Float32Array(totalPts * 3);
+        const colors = new Float32Array(totalPts * 3);
+        let idx = 0;
 
-      const angleRad = (state.pose.yaw * Math.PI) / 180;
-      radarCtx.save();
-      radarCtx.translate(selfRx, selfRy);
-      radarCtx.rotate(-angleRad);
-      radarCtx.fillStyle = '#f43f5e';
-      radarCtx.beginPath();
-      radarCtx.moveTo(0, -6);
-      radarCtx.lineTo(4, 4);
-      radarCtx.lineTo(-4, 4);
-      radarCtx.closePath();
-      radarCtx.fill();
-      radarCtx.restore();
+        for (let mp of state.triangulatedMapPoints) {
+          positions[idx * 3] = mp.position.x;
+          positions[idx * 3 + 1] = mp.position.y;
+          positions[idx * 3 + 2] = mp.position.z;
+          colors[idx * 3] = mp.color.r;
+          colors[idx * 3 + 1] = mp.color.g;
+          colors[idx * 3 + 2] = mp.color.b;
+          idx++;
+        }
+
+        for (let a of state.activeAnchors) {
+          positions[idx * 3] = a.worldPos.x;
+          positions[idx * 3 + 1] = a.worldPos.y;
+          positions[idx * 3 + 2] = a.worldPos.z;
+          colors[idx * 3] = a.color.r;
+          colors[idx * 3 + 1] = a.color.g;
+          colors[idx * 3 + 2] = a.color.b;
+          idx++;
+        }
+
+        pointCloudGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        pointCloudGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        pointCloudGeometry.attributes.position.needsUpdate = true;
+        pointCloudGeometry.attributes.color.needsUpdate = true;
+      }
+
+      // Orbit Camera Follow
+      const tx = state.pose.x;
+      const ty = state.pose.y;
+      const tz = state.pose.z;
+
+      const camX = tx + orbitDistance * Math.cos(orbitElevation) * Math.sin(orbitAzimuth);
+      const camY = ty + orbitDistance * Math.sin(orbitElevation);
+      const camZ = tz + orbitDistance * Math.cos(orbitElevation) * Math.cos(orbitAzimuth);
+
+      camera3D.position.set(camX, camY, camZ);
+      camera3D.lookAt(tx, ty, tz);
+
+      renderer3D.render(scene, camera3D);
     }
 
-    function renderTrajectoryCanvases() {
-      if (trajectoryWindow.classList.contains('pointer-events-none')) return;
-
-      const traj = state.trajectory3D.slice(-state.maxTrailLength);
-      
-      if (traj.length > 0) {
-        let minX = Infinity, maxX = -Infinity;
-        let minZ = Infinity, maxZ = -Infinity;
-        let minY = Infinity, maxY = -Infinity;
-
-        traj.forEach(p => {
-          if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
-          if (p.z < minZ) minZ = p.z; if (p.z > maxZ) maxZ = p.z;
-          if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
-        });
-
-        statEnvX.textContent = `${(maxX - minX).toFixed(2)} m`;
-        statEnvZ.textContent = `${(maxZ - minZ).toFixed(2)} m`;
-        statEnvY.textContent = `${(maxY - minY).toFixed(2)} m`;
-      }
-
-      if (state.activeTrajTab === '2d' && trajCanvas2D) {
-        const w = trajCanvas2D.width;
-        const h = trajCanvas2D.height;
-        const cx = w / 2;
-        const cy = h / 2;
-
-        trajCtx2D.clearRect(0, 0, w, h);
-
-        trajCtx2D.strokeStyle = 'rgba(192, 132, 252, 0.15)';
-        trajCtx2D.lineWidth = 1;
-        const scale = 30;
-
-        for (let x = 0; x < w; x += scale) {
-          trajCtx2D.beginPath(); trajCtx2D.moveTo(x, 0); trajCtx2D.lineTo(x, h); trajCtx2D.stroke();
-        }
-        for (let y = 0; y < h; y += scale) {
-          trajCtx2D.beginPath(); trajCtx2D.moveTo(0, y); trajCtx2D.lineTo(w, y); trajCtx2D.stroke();
-        }
-
-        trajCtx2D.strokeStyle = '#c084fc';
-        trajCtx2D.beginPath();
-        trajCtx2D.arc(cx, cy, 4, 0, Math.PI * 2);
-        trajCtx2D.stroke();
-
-        if (traj.length > 1) {
-          for (let i = 1; i < traj.length; i++) {
-            const p1 = traj[i - 1];
-            const p2 = traj[i];
-
-            const x1 = cx + p1.x * scale;
-            const y1 = cy + p1.z * scale;
-            const x2 = cx + p2.x * scale;
-            const y2 = cy + p2.z * scale;
-
-            trajCtx2D.beginPath();
-            trajCtx2D.moveTo(x1, y1);
-            trajCtx2D.lineTo(x2, y2);
-
-            const hue = Math.min(280, Math.max(160, 220 + p2.y * 60));
-            trajCtx2D.strokeStyle = `hsl(${hue}, 80%, 60%)`;
-            trajCtx2D.lineWidth = 2.5;
-            trajCtx2D.stroke();
-          }
-
-          const head = traj[traj.length - 1];
-          const headX = cx + head.x * scale;
-          const headY = cy + head.z * scale;
-
-          trajCtx2D.beginPath();
-          trajCtx2D.arc(headX, headY, 6, 0, Math.PI * 2);
-          trajCtx2D.fillStyle = '#f43f5e';
-          trajCtx2D.fill();
-        }
-      }
-    }
-
+    // ==========================================
+    // 7. DRAWER, EXPORT & ORIGIN RESET
+    // ==========================================
     function toggleTrajectoryWindow() {
-      const isHidden = trajectoryWindow.classList.contains('pointer-events-none');
-      if (isHidden) {
+      const hidden = trajectoryWindow.classList.contains('pointer-events-none');
+      if (hidden) {
         trajectoryWindow.classList.remove('opacity-0', 'pointer-events-none', 'scale-95');
         trajectoryWindow.classList.add('opacity-100', 'scale-100');
         resizeCanvases();
@@ -1596,275 +1942,116 @@
       } else if (tab === 'measures') {
         tabTrajMeasures.className = "flex-1 py-2 px-3 border-b-2 border-amber-400 text-amber-300 bg-amber-500/10 transition flex items-center justify-center gap-1";
         viewTrajMeasures.classList.remove('hidden');
-      } else if (tab === 'stats') {
+      } else {
         tabTrajStats.className = "flex-1 py-2 px-3 border-b-2 border-emerald-400 text-emerald-300 bg-emerald-500/10 transition flex items-center justify-center gap-1";
         viewTrajStats.classList.remove('hidden');
       }
       renderTrajectoryCanvases();
     }
 
+    function renderTrajectoryCanvases() {
+      if (trajectoryWindow.classList.contains('pointer-events-none')) return;
+      if (state.activeTrajTab !== '2d' || !trajCanvas2D) return;
+
+      const w = trajCanvas2D.width;
+      const h = trajCanvas2D.height;
+      const cx = w * 0.5;
+      const cy = h * 0.5;
+      const scale = 32; // 32px = 1.0m
+
+      trajCtx2D.clearRect(0, 0, w, h);
+
+      trajCtx2D.strokeStyle = 'rgba(192, 132, 252, 0.16)';
+      trajCtx2D.lineWidth = 1;
+      for (let x = cx % scale; x < w; x += scale) {
+        trajCtx2D.beginPath(); trajCtx2D.moveTo(x, 0); trajCtx2D.lineTo(x, h); trajCtx2D.stroke();
+      }
+      for (let y = cy % scale; y < h; y += scale) {
+        trajCtx2D.beginPath(); trajCtx2D.moveTo(0, y); trajCtx2D.lineTo(w, y); trajCtx2D.stroke();
+      }
+
+      // Origin circle
+      trajCtx2D.strokeStyle = '#38bdf8';
+      trajCtx2D.beginPath();
+      trajCtx2D.arc(cx, cy, 4, 0, Math.PI * 2);
+      trajCtx2D.stroke();
+
+      if (state.trajectory3D.length > 1) {
+        trajCtx2D.beginPath();
+        trajCtx2D.strokeStyle = '#c084fc';
+        trajCtx2D.lineWidth = 2.5;
+        state.trajectory3D.forEach((p, idx) => {
+          const px = cx + p.x * scale;
+          const py = cy + p.z * scale;
+          if (idx === 0) trajCtx2D.moveTo(px, py);
+          else trajCtx2D.lineTo(px, py);
+        });
+        trajCtx2D.stroke();
+
+        const last = state.trajectory3D[state.trajectory3D.length - 1];
+        trajCtx2D.fillStyle = '#f43f5e';
+        trajCtx2D.beginPath();
+        trajCtx2D.arc(cx + last.x * scale, cy + last.z * scale, 5, 0, Math.PI * 2);
+        trajCtx2D.fill();
+      }
+    }
+
     function exportTrajectoryJSON() {
-      const exportObj = {
-        version: APP_BUILD_VERSION,
+      const payload = {
+        appVersion: APP_BUILD_VERSION,
+        exportedAt: new Date().toISOString(),
         trajectory: state.trajectory3D,
-        measurements: state.measureRecords.map(m => ({ id: m.id, distanceMeter: m.dist, p1: m.p1, p2: m.p2 })),
-        triangulatedMapPoints: state.triangulatedMapPoints.map(p => ({
-          x: p.position.x, y: p.position.y, z: p.position.z,
-          r: p.color.r, g: p.color.g, b: p.color.b
+        measurements: state.measureRecords.map(m => ({
+          distanceMeter: m.distanceMeter,
+          label: m.label,
+          p1: { x: m.p1.x, y: m.p1.y, z: m.p1.z },
+          p2: { x: m.p2.x, y: m.p2.y, z: m.p2.z }
+        })),
+        pointCloud: state.triangulatedMapPoints.map(p => ({
+          x: p.position.x,
+          y: p.position.y,
+          z: p.position.z,
+          r: Math.round(p.color.r * 255),
+          g: Math.round(p.color.g * 255),
+          b: Math.round(p.color.b * 255)
         }))
       };
-      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj, null, 2));
-      const downloadAnchor = document.createElement('a');
-      downloadAnchor.setAttribute("href", dataStr);
-      downloadAnchor.setAttribute("download", `slam_measured_${Date.now()}.json`);
-      document.body.appendChild(downloadAnchor);
-      downloadAnchor.click();
-      downloadAnchor.remove();
+      const uri = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(payload, null, 2));
+      const link = document.createElement('a');
+      link.href = uri;
+      link.download = `pnp_slam_${APP_BUILD_VERSION}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
     }
 
     function exportTrajectoryCSV() {
-      let csvContent = "data:text/csv;charset=utf-8,Timestamp,X_Meter,Y_Meter,Z_Meter,Speed_mps\n";
+      let csv = "data:text/csv;charset=utf-8,Timestamp,X_m,Y_m,Z_m\n";
       state.trajectory3D.forEach(p => {
-        csvContent += `${p.timestamp},${p.x.toFixed(4)},${p.y.toFixed(4)},${p.z.toFixed(4)},${p.speed.toFixed(4)}\n`;
+        csv += `${p.timestamp.toFixed(1)},${p.x.toFixed(4)},${p.y.toFixed(4)},${p.z.toFixed(4)}\n`;
       });
-
-      const downloadAnchor = document.createElement('a');
-      downloadAnchor.setAttribute("href", encodeURI(csvContent));
-      downloadAnchor.setAttribute("download", `slam_trajectory_${Date.now()}.csv`);
-      document.body.appendChild(downloadAnchor);
-      downloadAnchor.click();
-      downloadAnchor.remove();
-    }
-
-    // ==========================================
-    // 6. THREE.JS 3D SCENE & POINT CLOUD
-    // ==========================================
-    function initThreeJS() {
-      const width = window.innerWidth;
-      const height = window.innerHeight;
-
-      scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x060913);
-
-      camera3D = new THREE.PerspectiveCamera(60, width / height, 0.1, 100);
-      camera3D.position.set(0, 2.2, 4.0);
-      camera3D.lookAt(0, 0, 0);
-
-      raycaster = new THREE.Raycaster();
-      raycaster.params.Points.threshold = 0.25;
-      mouseRaycast = new THREE.Vector2();
-
-      renderer3D = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-      renderer3D.setSize(width, height);
-      renderer3D.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-
-      threeCanvasContainer.appendChild(renderer3D.domElement);
-
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
-      scene.add(ambientLight);
-
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-      dirLight.position.set(5, 10, 7);
-      scene.add(dirLight);
-
-      const grid = new THREE.GridHelper(20, 20, 0x38bdf8, 0x1e293b);
-      grid.position.y = -0.8;
-      scene.add(grid);
-
-      trajectoryMeshGroup = new THREE.Group();
-      scene.add(trajectoryMeshGroup);
-
-      pillarsGroup = new THREE.Group();
-      scene.add(pillarsGroup);
-
-      measurementGroup = new THREE.Group();
-      scene.add(measurementGroup);
-
-      // Start Marker (S)
-      const startGeo = new THREE.SphereGeometry(0.12, 16, 16);
-      const startMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7 });
-      startMarkerMesh = new THREE.Mesh(startGeo, startMat);
-      scene.add(startMarkerMesh);
-
-      // Current Marker (C)
-      const currentGeo = new THREE.SphereGeometry(0.08, 16, 16);
-      const currentMat = new THREE.MeshStandardMaterial({ color: 0xf43f5e, emissive: 0xe11d48 });
-      currentMarkerMesh = new THREE.Mesh(currentGeo, currentMat);
-      scene.add(currentMarkerMesh);
-
-      // 3D CAMERA ORIENTATION AVATAR & FRUSTUM
-      cameraAvatarGroup = new THREE.Group();
-
-      const phoneGeo = new THREE.BoxGeometry(0.22, 0.44, 0.03);
-      const phoneMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.8, roughness: 0.2 });
-      const phoneMesh = new THREE.Mesh(phoneGeo, phoneMat);
-      cameraAvatarGroup.add(phoneMesh);
-
-      const screenGeo = new THREE.PlaneGeometry(0.20, 0.40);
-      const screenMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide });
-      const screenMesh = new THREE.Mesh(screenGeo, screenMat);
-      screenMesh.position.z = 0.016;
-      cameraAvatarGroup.add(screenMesh);
-
-      // Camera Frustum Pyramid (Pointing forward along -Z)
-      const frustumGeo = new THREE.ConeGeometry(0.45, 0.6, 4);
-      frustumGeo.rotateX(-Math.PI / 2);
-      const frustumWireMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, wireframe: true, transparent: true, opacity: 0.7 });
-      const frustumPyramidMesh = new THREE.Mesh(frustumGeo, frustumWireMat);
-      frustumPyramidMesh.position.z = -0.3;
-      cameraAvatarGroup.add(frustumPyramidMesh);
-
-      // Heading Vector (Green Arrow forward along -Z)
-      const arrowDir = new THREE.Vector3(0, 0, -1);
-      const arrowOrigin = new THREE.Vector3(0, 0, 0);
-      const headingArrowMesh = new THREE.ArrowHelper(arrowDir, arrowOrigin, 0.6, 0x10b981, 0.15, 0.1);
-      cameraAvatarGroup.add(headingArrowMesh);
-
-      // Axes Guide (Red: +X, Green: +Y [Up], Blue: +Z)
-      const axesIndicatorGroup = new THREE.AxesHelper(0.35);
-      cameraAvatarGroup.add(axesIndicatorGroup);
-
-      scene.add(cameraAvatarGroup);
-
-      // PERSISTENT REAL-COLOR 3D POINT CLOUD
-      pointCloudGeometry = new THREE.BufferGeometry();
-      const pointCloudMat = new THREE.PointsMaterial({
-        vertexColors: true,
-        size: state.pointSize,
-        transparent: true,
-        opacity: 0.95,
-        sizeAttenuation: true
-      });
-      pointCloudParticles = new THREE.Points(pointCloudGeometry, pointCloudMat);
-      scene.add(pointCloudParticles);
-    }
-
-    function update3DScene() {
-      if (!scene) return;
-
-      cameraAvatarGroup.position.set(state.pose.x, state.pose.y, state.pose.z);
-
-      const euler = new THREE.Euler(
-        THREE.MathUtils.degToRad(state.pose.pitch),
-        THREE.MathUtils.degToRad(state.pose.yaw),
-        THREE.MathUtils.degToRad(state.pose.roll),
-        'YXZ'
-      );
-      cameraAvatarGroup.quaternion.setFromEuler(euler);
-      currentMarkerMesh.position.set(state.pose.x, state.pose.y, state.pose.z);
-
-      // Reconstruct Trajectory Ribbon with floor drop-lines
-      if (state.trajectory3D.length > 1) {
-        while (trajectoryMeshGroup.children.length > 0) {
-          const obj = trajectoryMeshGroup.children.pop();
-          if (obj.geometry) obj.geometry.dispose();
-        }
-        while (pillarsGroup.children.length > 0) {
-          const obj = pillarsGroup.children.pop();
-          if (obj.geometry) obj.geometry.dispose();
-        }
-
-        const points = state.trajectory3D.map(p => new THREE.Vector3(p.x, p.y, p.z));
-        startMarkerMesh.position.copy(points[0]);
-
-        const curve = new THREE.CatmullRomCurve3(points);
-        const tubularSegments = Math.min(points.length * 4, 300);
-        const tubeGeometry = new THREE.TubeGeometry(curve, tubularSegments, 0.035, 8, false);
-
-        const count = tubeGeometry.attributes.position.count;
-        const colors = new Float32Array(count * 3);
-
-        for (let i = 0; i < count; i++) {
-          const progress = i / count;
-          let color = new THREE.Color();
-          const yVal = points[Math.floor(progress * (points.length - 1))].y;
-          const hue = Math.min(0.7, Math.max(0.0, 0.55 - yVal * 0.3));
-          color.setHSL(hue, 0.9, 0.5);
-
-          colors[i * 3] = color.r;
-          colors[i * 3 + 1] = color.g;
-          colors[i * 3 + 2] = color.b;
-        }
-
-        tubeGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-        const tubeMaterial = new THREE.MeshStandardMaterial({
-          vertexColors: true,
-          roughness: 0.3,
-          metalness: 0.2
-        });
-
-        const tubeMesh = new THREE.Mesh(tubeGeometry, tubeMaterial);
-        trajectoryMeshGroup.add(tubeMesh);
-
-        // Ground Drop-lines (Pillars down to ground Y=-0.8m)
-        const pillarStep = Math.max(1, Math.floor(points.length / 25));
-        for (let i = 0; i < points.length; i += pillarStep) {
-          const pt = points[i];
-          const pillarGeo = new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(pt.x, pt.y, pt.z),
-            new THREE.Vector3(pt.x, -0.8, pt.z)
-          ]);
-          const pillarMat = new THREE.LineDashedMaterial({
-            color: 0x38bdf8,
-            dashSize: 0.08,
-            gapSize: 0.08,
-            opacity: 0.5,
-            transparent: true
-          });
-          const line = new THREE.Line(pillarGeo, pillarMat);
-          line.computeLineDistances();
-          pillarsGroup.add(line);
-        }
-      }
-
-      // UPDATE SPATIAL TRIANGULATED POINT CLOUD BUFFER
-      const ptCount = state.triangulatedMapPoints.length;
-      if (ptCount > 0) {
-        const positions = new Float32Array(ptCount * 3);
-        const rgbColors = new Float32Array(ptCount * 3);
-
-        for (let i = 0; i < ptCount; i++) {
-          const pt = state.triangulatedMapPoints[i];
-          positions[i * 3] = pt.position.x;
-          positions[i * 3 + 1] = pt.position.y;
-          positions[i * 3 + 2] = pt.position.z;
-
-          rgbColors[i * 3] = pt.color.r;
-          rgbColors[i * 3 + 1] = pt.color.g;
-          rgbColors[i * 3 + 2] = pt.color.b;
-        }
-
-        pointCloudGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        pointCloudGeometry.setAttribute('color', new THREE.BufferAttribute(rgbColors, 3));
-        pointCloudGeometry.attributes.position.needsUpdate = true;
-        pointCloudGeometry.attributes.color.needsUpdate = true;
-      }
-
-      // Orbit camera positioning
-      if (state.activeMainView === '3d') {
-        const targetX = state.pose.x;
-        const targetY = state.pose.y;
-        const targetZ = state.pose.z;
-
-        const camX = targetX + orbitDistance * Math.cos(orbitElevation) * Math.sin(orbitAzimuth);
-        const camY = targetY + orbitDistance * Math.sin(orbitElevation);
-        const camZ = targetZ + orbitDistance * Math.cos(orbitElevation) * Math.cos(orbitAzimuth);
-
-        camera3D.position.set(camX, camY, camZ);
-        camera3D.lookAt(targetX, targetY, targetZ);
-      }
-
-      renderer3D.render(scene, camera3D);
+      const link = document.createElement('a');
+      link.href = encodeURI(csv);
+      link.download = `pnp_trajectory_${APP_BUILD_VERSION}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
     }
 
     function resetOriginPosition() {
       state.pose = { x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 0 };
       state.lastPose = { x: 0, y: 0, z: 0 };
+      state.sensor.initAlpha = null;
       state.totalDistance = 0;
-      state.currentSpeed = 0;
-      state.trackedFeatures = [];
+      state.reprojectionRMSE = 0;
+      state.lockedAnchorCount = 0;
+      state.keyframeCount = 0;
+      state.lastKeyframePose = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0 };
+      state.activeAnchors = [];
       state.triangulatedMapPoints = [];
       state.trajectory3D = [];
+      prevGrayFrame = null;
+
       clearAllMeasurements();
 
       while (trajectoryMeshGroup.children.length > 0) {
@@ -1875,18 +2062,20 @@
         const obj = pillarsGroup.children.pop();
         if (obj.geometry) obj.geometry.dispose();
       }
+
       pointCloudGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(0), 3));
       pointCloudGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(0), 3));
 
-      statTriangulated.textContent = '0';
-      statSummaryPts.textContent = '0 点';
+      statAnchorsElem.textContent = '0';
+      statRmseElem.textContent = '0.0';
+      statTriangulatedElem.textContent = '0';
+      statDistElem.textContent = '0.00m';
+      posXElem.innerHTML = `0.00 <span class="text-[8px] font-normal text-slate-400">m</span>`;
+      posYElem.innerHTML = `0.00 <span class="text-[8px] font-normal text-slate-400">m</span>`;
+      posZElem.innerHTML = `0.00 <span class="text-[8px] font-normal text-slate-400">m</span>`;
 
       renderTrajectoryCanvases();
-      setStatus('原点をリセットしました', 'bg-sky-500');
-      setTimeout(() => {
-        if (state.isTracking) setStatus('空間マッピング中 (3D復元)', 'bg-emerald-500');
-        else setStatus('一時停止中', 'bg-amber-500');
-      }, 1200);
+      setStatus('原点・空間アンカーをリセットしました', 'bg-sky-500');
     }
   </script>
 </body>
